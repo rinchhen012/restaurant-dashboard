@@ -56,7 +56,7 @@ manually if Uber asks; `--headless` for servers without a display). The Demae-Ca
 account is the default; the Nerima account uses `--account=nerima`. To store/update credentials:
 
 ```bash
-python -m app.credentials ubereats --user <email> --password <pwd> --pin ***
+python -m app.credentials ubereats --user <email> --password <pwd> --pin <manager-pin>
 python -m app.credentials demaecan --user <email> --password <pwd>
 python -m app.credentials demaecan-nerima --user <email> --password <pwd>
 ```

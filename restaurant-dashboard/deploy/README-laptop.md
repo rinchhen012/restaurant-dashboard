@@ -44,7 +44,7 @@ Enter the Uber SMS code when prompted in the terminal. Sessions last ~30 days.
 
 > The container has no stored credentials — if you want auto-login on the
 > laptop, store them once with:
-> `docker exec -it restaurant-dashboard python -m app.credentials ubereats --user ... --password ... --pin ***`
+> `docker exec -it restaurant-dashboard python -m app.credentials ubereats --user ... --password ... --pin <manager-pin>`
 > (and the demaecan / demaecan-nerima equivalents). They persist in the
 > `data/` volume, encrypted.
 

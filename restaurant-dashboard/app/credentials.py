@@ -4,7 +4,7 @@ Credentials are stored as a single JSON blob encrypted with the local
 Fernet key in data/secret.key. Used by the capture tool's --auto mode.
 
 CLI usage:
-    python -m app.credentials ubereats --user <email> --password <pwd> [--pin ***]
+    python -m app.credentials ubereats --user <email> --password <pwd> [--pin <manager-pin>]
     python -m app.credentials demaecan --user <email> --password <pwd>
     python -m app.credentials <platform> --show
     python -m app.credentials <platform> --delete
