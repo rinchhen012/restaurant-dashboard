@@ -293,14 +293,26 @@ class DemaeCanAdapter(Adapter):
             "store_name": self.store_name,
         }
 
+    async def _search_pages(self, body: dict) -> list[dict]:
+        """Fetch all orders matching a search body, following offset pagination."""
+        out: list[dict] = []
+        for _ in range(10):  # safety cap (10 pages x limit)
+            resp = await self._post_json(f"{BASE}/v2/order/search/order", body)
+            if resp.status_code >= 400:
+                raise RuntimeError(f"{self.label}: order search -> HTTP {resp.status_code}: {resp.text[:300]}")
+            payload = resp.json()
+            if payload.get("code") != "MSA0000":
+                raise RuntimeError(f"{self.label}: order search failed: {payload.get('code')} {payload.get('message', '')}")
+            orders = pick(payload, "data.searchOrderList") or []
+            out.extend(orders)
+            limit = body.get("limit", 50)
+            if len(orders) < limit:
+                break
+            body["offset"] = body.get("offset", 0) + limit
+        return out
+
     async def fetch_orders(self) -> list[dict]:
-        resp = await self._post_json(f"{BASE}/v2/order/search/order", self._order_search_body())
-        if resp.status_code >= 400:
-            raise RuntimeError(f"{self.label}: order search -> HTTP {resp.status_code}: {resp.text[:300]}")
-        payload = resp.json()
-        if payload.get("code") != "MSA0000":
-            raise RuntimeError(f"{self.label}: order search failed: {payload.get('code')} {payload.get('message', '')}")
-        orders = pick(payload, "data.searchOrderList") or []
+        orders = await self._search_pages(self._order_search_body())
         parsed = [self._parse_order(o) for o in orders]
         return [o for o in parsed if o["external_id"]]
 
@@ -402,11 +414,7 @@ class DemaeCanAdapter(Adapter):
         body = self._order_search_body()
         body["orderDatetimeFrom"] = f"{date}T00:00:00+09:00"
         body["orderDatetimeTo"] = f"{date}T23:59:59+09:00"
-        resp = await self._post_json(f"{BASE}/v2/order/search/order", body)
-        if resp.status_code >= 400:
-            raise RuntimeError(f"{self.label}: order search -> HTTP {resp.status_code}: {resp.text[:300]}")
-        payload = resp.json()
-        orders = pick(payload, "data.searchOrderList") or []
+        orders = await self._search_pages(body)
         parsed = [self._parse_order(o) for o in orders if o.get("orderId")]
         sem = asyncio.Semaphore(10)
 

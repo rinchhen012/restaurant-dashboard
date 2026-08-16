@@ -277,8 +277,7 @@ class UberEatsAdapter(Adapter):
             body["filters"]["locationConstraints"]["locationUuids"] = self.endpoints.get("location_uuids", [])
         body["filters"]["dateFilter"]["startDate"] = f"{date} 00:00:00"
         body["filters"]["dateFilter"]["endDate"] = f"{date} 23:59:59"
-        resp = await self._post("getHistoricOrders", body)
-        rows = pick(resp, "data.orders") or []
+        rows = await self._historic_pages(body)
         parsed = [self._parse_row(r, "historic") for r in rows]
         parsed = [o for o in parsed if o["external_id"]]
         sem = asyncio.Semaphore(10)
@@ -312,13 +311,28 @@ class UberEatsAdapter(Adapter):
             raise RuntimeError(f"{self.label}: {endpoint} -> HTTP {resp.status_code}: {resp.text[:300]}")
         return resp.json()
 
+    async def _historic_pages(self, body: dict) -> list[dict]:
+        """Fetch all historic orders, following cursor pagination."""
+        limit = (body.get("pagination") or {}).get("limit", 50)
+        all_rows: list[dict] = []
+        for _ in range(10):  # safety cap (10 pages x limit)
+            resp = await self._post("getHistoricOrders", body)
+            data = pick(resp, "data") or {}
+            rows = data.get("orders") or []
+            all_rows.extend(rows)
+            pr = data.get("paginationResult") or {}
+            cursor = pr.get("nextCursor") or ""
+            if not rows or len(rows) < limit or not cursor:
+                break
+            body["pagination"]["cursor"] = cursor
+        return all_rows
+
     async def fetch_orders(self) -> list[dict]:
         active = await self._post("getActiveOrders", self.active_body)
-        historic = await self._post("getHistoricOrders", self._historic_body_today())
         rows = []
         for row in pick(active, "data.rows") or []:
             rows.append(self._parse_row(row, "active"))
-        for row in pick(historic, "data.orders") or []:
+        for row in await self._historic_pages(self._historic_body_today()):
             rows.append(self._parse_row(row, "historic"))
         return [r for r in rows if r["external_id"]]
 
