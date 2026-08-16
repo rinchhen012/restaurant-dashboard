@@ -242,6 +242,27 @@
     .footer { padding: 16px 16px 24px; }
   }
   .reauth { display: none; margin-top: 6px; font-size: 12.5px; color: #fbbf24; padding: 0 16px 8px; }
+  .fab {
+    position: absolute; right: 16px; bottom: 16px; width: 52px; height: 52px;
+    border-radius: 50%; border: none; background: var(--accent); color: #fff;
+    font-size: 22px; cursor: pointer; z-index: 6;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab:hover { filter: brightness(1.1); }
+  .search-bar { display: flex; gap: 8px; padding: 8px 16px; }
+  .search-bar input[type=search] {
+    flex: 1; padding: 9px 12px; font-size: 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+  }
+  .search-bar input[type=search]:focus { outline: none; border-color: var(--accent); }
+  .search-results { padding: 0 16px 8px; }
+  .search-note { color: var(--muted); font-size: 12px; padding: 0 0 8px; }
+  @media (max-width: 860px) {
+    .fab { right: 14px; bottom: 14px; }
+    .search-bar { padding: 8px 14px; }
+    .search-results { padding: 0 14px 8px; }
+  }
 </style>
 </head>
 <body>
@@ -278,7 +299,13 @@
     </div>
     <div class="orders" id="orders-ubereats"><div class="empty">No orders yet</div></div>
     <div class="orders" id="history-ubereats" style="display:none"><div class="empty">No completed orders</div></div>
+    <div class="search-bar" id="searchbar-ubereats" hidden>
+      <input type="search" id="searchinput-ubereats" placeholder="Search orders (code, customer, item, address, phone…)" autocomplete="off">
+      <button class="btn ghost" id="searchclose-ubereats" title="Close">✕</button>
+    </div>
+    <div class="orders search-results" id="searchresults-ubereats" hidden></div>
     <div class="reauth" id="reauth-ubereats">Session expired — run <code>python -m app.capture ubereats</code> again to re-login.</div>
+    <button class="fab" id="fab-ubereats" title="Search orders">🔍</button>
   </div>
 
   <div class="panel" id="panel-demaecan">
@@ -305,7 +332,13 @@
     </div>
     <div class="orders" id="orders-demaecan"><div class="empty">No orders yet</div></div>
     <div class="orders" id="history-demaecan" style="display:none"><div class="empty">No completed orders</div></div>
+    <div class="search-bar" id="searchbar-demaecan" hidden>
+      <input type="search" id="searchinput-demaecan" placeholder="Search orders (code, customer, item, address, phone…)" autocomplete="off">
+      <button class="btn ghost" id="searchclose-demaecan" title="Close">✕</button>
+    </div>
+    <div class="orders search-results" id="searchresults-demaecan" hidden></div>
     <div class="reauth" id="reauth-demaecan">Session expired — run <code>python -m app.capture demaecan</code> again to re-login.</div>
+    <button class="fab" id="fab-demaecan" title="Search orders">🔍</button>
   </div>
 </div>
 
@@ -644,6 +677,59 @@ function copyText(text) {
   return Promise.resolve(legacyCopy(text));
 }
 
+let searchActive = { ubereats: false, demaecan: false };
+
+function searchFields(o) {
+  const m = o.meta || {};
+  const itemText = (o.items || []).flatMap(i => [i.title, ...(i.options || []).map(x => x.title)]).join(" ");
+  return [
+    o.order_code, o.external_id, o.status, o.customer, m.customer_en,
+    m.address, m.address_en, m.phone, o.store_name, itemText
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
+function renderSearch(pfx, q) {
+  const results = $("searchresults-" + pfx);
+  const all = [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])]
+    .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+  const ql = q.trim().toLowerCase();
+  const matches = ql ? all.filter(o => searchFields(o).includes(ql)) : all;
+  const shown = matches.slice(0, 50);
+  const cards = shown.map(o => {
+    const wrap = document.createElement("div");
+    wrap.innerHTML = orderCard(o, pfx, false);
+    return wrap.firstElementChild.outerHTML;
+  }).join("");
+  const note = ql
+    ? `Found ${matches.length} order${matches.length === 1 ? "" : "s"}${matches.length > 50 ? " — showing first 50" : ""}`
+    : "Search all of today's orders…";
+  results.innerHTML = `<div class="search-note">${note}</div>${cards || '<div class="empty">No matches</div>'}`;
+}
+
+function setupSearch(pfx) {
+  const fab = $("fab-" + pfx), bar = $("searchbar-" + pfx), input = $("searchinput-" + pfx),
+        close = $("searchclose-" + pfx), results = $("searchresults-" + pfx);
+  if (!fab) return;
+  const closeSearch = () => {
+    searchActive[pfx] = false;
+    bar.hidden = true;
+    results.hidden = true;
+    fab.style.display = "";
+  };
+  fab.addEventListener("click", () => {
+    searchActive[pfx] = true;
+    bar.hidden = false;
+    results.hidden = false;
+    fab.style.display = "none";
+    input.value = "";
+    renderSearch(pfx, "");
+    input.focus();
+  });
+  close.addEventListener("click", closeSearch);
+  input.addEventListener("input", () => renderSearch(pfx, input.value));
+  input.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
+}
+
 function setupTabs() {
   document.addEventListener("click", (e) => {
     const distEl = e.target.closest(".dist.clickable");
@@ -838,6 +924,7 @@ async function loadOrders() {
     }
     for (const pfx of Object.keys(PLATFORMS)) {
       renderAll(pfx);
+      if (searchActive[pfx] && !$("searchbar-" + pfx).hidden) renderSearch(pfx, $("searchinput-" + pfx).value);
     }
   } catch (e) { setConn(false, "api error"); }
 }
@@ -905,6 +992,8 @@ $("dt-set").addEventListener("click", async () => {
 loadState();
 loadOrders();
 setupTabs();
+setupSearch("ubereats");
+setupSearch("demaecan");
 setupPlatformTabs();
 setupMapModal();
 connectSSE();
