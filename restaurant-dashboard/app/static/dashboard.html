@@ -390,8 +390,8 @@
       <div class="stat"><div class="label">Orders today</div><div class="value" id="count-demaecan">–</div></div>
       <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-demaecan">–</div></div>
     </div>
-    <div class="section-title">Delivery time (waiting time)</div>
-    <div class="dt-widget">
+    <div class="section-title" id="delivery-title-demaecan">Delivery time (waiting time)</div>
+    <div class="dt-widget" id="dt-widget">
       <div class="current"><span id="dt-value">–</span> <span class="unit">min</span></div>
       <input type="number" id="dt-input" min="5" max="240" placeholder="Set min">
       <button class="btn" id="dt-set">Set</button>
@@ -413,7 +413,7 @@
 <div class="search-modal" id="cash-modal">
   <div class="search-modal-box" style="width: min(440px, 94vw)">
     <div class="search-modal-head">
-      <span>Cash payments today</span>
+      <span id="cash-modal-title">Cash payments today</span>
       <button class="btn ghost" id="cash-modal-close" title="Close">✕</button>
     </div>
     <div class="search-modal-results" id="cash-modal-body"></div>
@@ -947,7 +947,10 @@ function shortStore(label) {
 
 function cashData(scopeStore) {
   const totals = {};
-  for (const o of [...(ordersByPlatform.demaecan || []), ...(historyByPlatform.demaecan || [])]) {
+  const pool = viewDate
+    ? (dateOrders.demaecan || [])
+    : [...(ordersByPlatform.demaecan || []), ...(historyByPlatform.demaecan || [])];
+  for (const o of pool) {
     const m = o.meta || {};
     if (!m.payment_cash || o.total == null) continue;
     if (scopeStore && o.store_uuid !== scopeStore && !(scopeStore === "__unknown__" && !o.store_uuid)) continue;
@@ -963,6 +966,7 @@ function updateCashPill() {
   const t = cashData(selectedStore.demaecan);
   const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} ${money(v.total)}`);
   $("cash-pill-body").textContent = parts.length ? `💵 ${parts.join(" · ")}` : "💵 ¥0";
+  $("cash-pill").title = viewDate ? `Cash payments for ${fmtDateShort(viewDate)}` : "Cash payments today (Demae-Can)";
 }
 
 function setupCashPill() {
@@ -981,6 +985,7 @@ function openCashModal() {
   const rows = Object.entries(t).map(([label, v]) =>
     `<div class="cash-row"><span>${escapeHtml(label)}</span><span>${v.count} order${v.count === 1 ? "" : "s"}</span><span class="cash-amt">${money(v.total)}</span></div>`
   ).join("");
+  $("cash-modal-title").textContent = viewDate ? `Cash payments for ${fmtDateShort(viewDate)}` : "Cash payments today";
   $("cash-modal-body").innerHTML = `
     <div class="cash-total"><span>Total</span><span>${count} orders</span><span>${money(total)}</span></div>
     ${rows}`;
@@ -1051,9 +1056,13 @@ async function setDateView(dateStr) {
       if (chips) chips.style.display = "";
       applyTab(pfx);
     }
+    const dTitle = $("delivery-title-demaecan"); if (dTitle) dTitle.style.display = "";
+    const dWidget = $("dt-widget"); if (dWidget) dWidget.style.display = "";
     loadOrders();
     return;
   }
+  const dTitle = $("delivery-title-demaecan"); if (dTitle) dTitle.style.display = "none";
+  const dWidget = $("dt-widget"); if (dWidget) dWidget.style.display = "none";
   for (const pfx of Object.keys(PLATFORMS)) {
     const loadingEl = $("orders-" + pfx);
     if (loadingEl) loadingEl.innerHTML = '<div class="empty">Loading this date…</div>';
