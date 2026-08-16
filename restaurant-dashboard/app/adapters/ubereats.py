@@ -280,7 +280,7 @@ class UberEatsAdapter(Adapter):
         rows = await self._historic_pages(body)
         parsed = [self._parse_row(r, "historic") for r in rows]
         parsed = [o for o in parsed if o["external_id"]]
-        sem = asyncio.Semaphore(10)
+        sem = asyncio.Semaphore(5)
 
         async def enrich(o: dict) -> dict:
             async with sem:

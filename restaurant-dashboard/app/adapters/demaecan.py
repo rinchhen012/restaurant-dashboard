@@ -416,7 +416,7 @@ class DemaeCanAdapter(Adapter):
         body["orderDatetimeTo"] = f"{date}T23:59:59+09:00"
         orders = await self._search_pages(body)
         parsed = [self._parse_order(o) for o in orders if o.get("orderId")]
-        sem = asyncio.Semaphore(10)
+        sem = asyncio.Semaphore(5)
 
         async def enrich(o: dict) -> dict:
             async with sem:
