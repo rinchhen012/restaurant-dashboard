@@ -903,11 +903,12 @@ function shortStore(label) {
   return String(label || "").split(" ")[0] || label || "";
 }
 
-function cashData() {
+function cashData(scopeStore) {
   const totals = {};
   for (const o of [...(ordersByPlatform.demaecan || []), ...(historyByPlatform.demaecan || [])]) {
     const m = o.meta || {};
     if (!m.payment_cash || o.total == null) continue;
+    if (scopeStore && o.store_uuid !== scopeStore && !(scopeStore === "__unknown__" && !o.store_uuid)) continue;
     const label = (o.store_uuid && storeLookup.demaecan && storeLookup.demaecan[o.store_uuid]) || "Unknown";
     const t = totals[label] || (totals[label] = { count: 0, total: 0 });
     t.count++;
@@ -917,7 +918,7 @@ function cashData() {
 }
 
 function updateCashPill() {
-  const t = cashData();
+  const t = cashData(selectedStore.demaecan);
   const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} ${money(v.total)}`);
   $("cash-pill-body").textContent = parts.length ? `💵 ${parts.join(" · ")}` : "💵 ¥0";
 }
