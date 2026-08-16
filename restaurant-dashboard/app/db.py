@@ -156,12 +156,17 @@ def order_has_items(platform: str, external_id: str) -> bool:
     return len(items) > 0
 
 
-def list_orders(platform: str = None, limit: int = 100) -> list[dict]:
+def list_orders(platform: str = None, limit: int = 100, today_only: bool = False) -> list[dict]:
     sql = "SELECT * FROM orders"
     params: list = []
+    conds = []
     if platform:
-        sql += " WHERE platform=?"
+        conds.append("platform=?")
         params.append(platform)
+    if today_only:
+        conds.append("date(COALESCE(placed_at, first_seen_at)) = date('now', 'localtime')")
+    if conds:
+        sql += " WHERE " + " AND ".join(conds)
     sql += " ORDER BY COALESCE(placed_at, first_seen_at) DESC LIMIT ?"
     params.append(limit)
     with get_conn() as conn:

@@ -683,8 +683,9 @@ function searchFields(o) {
   const m = o.meta || {};
   const itemText = (o.items || []).flatMap(i => [i.title, ...(i.options || []).map(x => x.title)]).join(" ");
   return [
-    o.order_code, o.external_id, o.status, o.customer, m.customer_en,
-    m.address, m.address_en, m.phone, o.store_name, itemText
+    o.order_code, o.external_id, o.status, o.customer, m.customer, m.customer_en,
+    m.address, m.address_en, m.phone, o.store_name, itemText,
+    o.total != null ? String(o.total) : ""
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
@@ -906,7 +907,7 @@ function setConn(ok, text) {
 
 async function loadOrders() {
   try {
-    const res = await fetch("/api/orders?limit=80");
+    const res = await fetch("/api/orders?limit=500");
     const orders = await res.json();
     ordersByPlatform = { ubereats: [], demaecan: [] };
     historyByPlatform = { ubereats: [], demaecan: [] };

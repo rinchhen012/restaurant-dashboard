@@ -87,8 +87,8 @@ async def api_state():
 
 
 @app.get("/api/orders")
-async def api_orders(platform: str = None, limit: int = 100):
-    return db.list_orders(platform=platform, limit=limit)
+async def api_orders(platform: str = None, limit: int = 500, today: bool = True):
+    return db.list_orders(platform=platform, limit=limit, today_only=today)
 
 
 @app.get("/api/events")
