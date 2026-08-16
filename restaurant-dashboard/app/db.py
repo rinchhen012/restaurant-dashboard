@@ -332,6 +332,14 @@ def load_session(platform: str) -> list[dict] | None:
         return None
 
 
+def session_info(platform: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT captured_at, expires_at FROM sessions WHERE platform=?", (platform,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def delete_session(platform: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM sessions WHERE platform=?", (platform,))

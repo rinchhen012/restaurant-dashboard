@@ -397,6 +397,19 @@ class DemaeCanAdapter(Adapter):
             add(i)
         return out, meta
 
+    async def fetch_orders_for_date(self, date: str) -> list[dict]:
+        """All orders for a specific (past) date."""
+        body = self._order_search_body()
+        body["orderDatetimeFrom"] = f"{date}T00:00:00+09:00"
+        body["orderDatetimeTo"] = f"{date}T23:59:59+09:00"
+        resp = await self._post_json(f"{BASE}/v2/order/search/order", body)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"{self.label}: order search -> HTTP {resp.status_code}: {resp.text[:300]}")
+        payload = resp.json()
+        orders = pick(payload, "data.searchOrderList") or []
+        parsed = [self._parse_order(o) for o in orders]
+        return [o for o in parsed if o["external_id"]]
+
     async def fetch_order_items(self, order: dict) -> list[dict]:
         items, _ = await self.fetch_order_details(order)
         return items

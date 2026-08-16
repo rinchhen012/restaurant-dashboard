@@ -244,6 +244,16 @@ class UberEatsAdapter(Adapter):
             out.append(item)
         return out
 
+    async def fetch_orders_for_date(self, date: str) -> list[dict]:
+        """All orders for a specific (past) date via the historic list."""
+        body = json_dup(self.historic_body)
+        body["filters"]["dateFilter"]["startDate"] = f"{date} 00:00:00"
+        body["filters"]["dateFilter"]["endDate"] = f"{date} 23:59:59"
+        resp = await self._post("getHistoricOrders", body)
+        rows = pick(resp, "data.orders") or []
+        parsed = [self._parse_row(r, "historic") for r in rows]
+        return [o for o in parsed if o["external_id"]]
+
     async def _post(self, endpoint: str, body: dict) -> dict:
         url = f"{BASE}/{endpoint}?localeCode=en"
         resp = await self._post_json(url, body)

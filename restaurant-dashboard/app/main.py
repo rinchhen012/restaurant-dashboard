@@ -4,6 +4,8 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from datetime import datetime, timedelta
+
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
@@ -11,6 +13,7 @@ from app import config
 from app import db
 from app import pollers
 from app.adapters.demaecan import DemaeCanAdapter, account_configs, account_session_key
+from app.adapters.ubereats import UberEatsAdapter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -80,15 +83,53 @@ async def api_state():
     delivery = {}
     for acct in account_configs():
         delivery[acct] = db.get_delivery_time(account_session_key(acct))
+    sessions = {
+        "ubereats": session_expires_in_days("ubereats"),
+        "demaecan": {acct: session_expires_in_days(account_session_key(acct)) for acct in account_configs()},
+    }
     return {
         "platforms": platforms,
         "delivery_time": delivery,
+        "sessions": sessions,
     }
 
 
 @app.get("/api/orders")
 async def api_orders(platform: str = None, limit: int = 500, today: bool = True):
     return db.list_orders(platform=platform, limit=limit, today_only=today)
+
+
+@app.get("/api/orders/date")
+async def api_orders_by_date(platform: str, date: str):
+    """Orders for a specific past date, fetched live from the portals."""
+    if platform == "demaecan":
+        out = []
+        for acct in account_configs():
+            adapter = DemaeCanAdapter(account=acct)
+            try:
+                out += await adapter.fetch_orders_for_date(date)
+            finally:
+                await adapter.close()
+        return out
+    if platform == "ubereats":
+        adapter = UberEatsAdapter()
+        try:
+            return await adapter.fetch_orders_for_date(date)
+        finally:
+            await adapter.close()
+    return []
+
+
+def session_expires_in_days(platform: str) -> int | None:
+    info = db.session_info(platform)
+    if not info or not info.get("captured_at"):
+        return None
+    try:
+        captured = datetime.fromisoformat(info["captured_at"])
+    except Exception:
+        return None
+    days = (captured + timedelta(days=30) - datetime.now()).days
+    return max(days, 0)
 
 
 @app.get("/api/events")

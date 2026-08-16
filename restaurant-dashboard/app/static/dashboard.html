@@ -32,6 +32,17 @@
     cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
+  #date-picker {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 5px 8px; font-size: 12.5px; color-scheme: dark;
+  }
+  .date-today { padding: 5px 10px; font-size: 12.5px; }
+  .warn-banner {
+    background: #3d2c0e; color: #fbbf24; padding: 8px 16px; font-size: 12.5px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .warn-banner code { background: rgba(0, 0, 0, .3); padding: 1px 5px; border-radius: 4px; }
+  .warn-banner .btn { margin-left: auto; padding: 3px 10px; }
   .cash-row, .cash-total {
     display: flex; align-items: center; gap: 12px; padding: 9px 12px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
@@ -214,7 +225,7 @@
   }
   .platform-tabs { display: none; }
   @media (max-width: 860px) {
-    header { padding: 8px 16px; gap: 10px; }
+    header { padding: 8px 16px; gap: 8px; flex-wrap: wrap; }
     header h1 { font-size: 16px; }
     header .sub { display: none; }
     .platform-tabs {
@@ -323,8 +334,12 @@
 <header>
   <h1>Order Dashboard</h1>
   <span class="sub">Uber Eats · Demae-Can</span>
+  <input type="date" id="date-picker" title="View a past day">
+  <button class="btn ghost date-today" id="date-today" style="display:none">Today</button>
   <button class="cash-pill" id="cash-pill" title="Cash payments today (Demae-Can)"><span id="cash-pill-body">💵 –</span></button>
 </header>
+
+<div class="warn-banner" id="session-warn" hidden></div>
 
 <div class="toasts" id="toasts"></div>
 
@@ -651,10 +666,22 @@ function reconcileList(container, orders, platform) {
 function renderOrders(platform) {
   const el = $("orders-" + platform);
   if (!el) return;
+  if (viewDate) {
+    const list = filtered(dateOrders[platform] || [], platform).slice()
+      .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+    reconcileList(el, list, platform);
+    const revenue = list.reduce((s, o) => s + (o.total || 0), 0);
+    setText("count-" + platform, list.length);
+    setText("revenue-" + platform, money(revenue));
+    const activeEl = $("active-" + platform);
+    if (activeEl) setText("active-" + platform, list.length);
+    return;
+  }
   reconcileList(el, filtered(ordersByPlatform[platform], platform), platform);
 }
 
 function renderHistory(platform) {
+  if (viewDate) return;
   const el = $("history-" + platform);
   if (!el) return;
   reconcileList(el, filtered(historyByPlatform[platform], platform), platform);
@@ -946,6 +973,45 @@ function openCashModal() {
   $("cash-modal").classList.add("show");
 }
 
+let viewDate = null;
+let dateOrders = { ubereats: [], demaecan: [] };
+
+function setupDateView() {
+  $("date-picker").addEventListener("change", (e) => setDateView(e.target.value));
+  $("date-today").addEventListener("click", () => { $("date-picker").value = ""; setDateView(""); });
+}
+
+async function setDateView(dateStr) {
+  viewDate = dateStr || null;
+  $("date-today").style.display = viewDate ? "" : "none";
+  if (!viewDate) {
+    dateOrders = { ubereats: [], demaecan: [] };
+    for (const pfx of Object.keys(PLATFORMS)) {
+      const tabs = $("tabs-" + pfx);
+      if (tabs) tabs.style.display = pfx === "demaecan" ? "none" : "";
+      const chips = $("chips-" + pfx);
+      if (chips) chips.style.display = "";
+      applyTab(pfx);
+    }
+    loadOrders();
+    return;
+  }
+  for (const pfx of Object.keys(PLATFORMS)) {
+    try {
+      const res = await fetch(`/api/orders/date?platform=${pfx}&date=${viewDate}`);
+      dateOrders[pfx] = await res.json();
+    } catch (e) {
+      dateOrders[pfx] = [];
+    }
+  }
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const tabs = $("tabs-" + pfx); if (tabs) tabs.style.display = "none";
+    const chips = $("chips-" + pfx); if (chips) chips.style.display = "none";
+    const hist = $("history-" + pfx); if (hist) hist.style.display = "none";
+    renderAll(pfx);
+  }
+}
+
 function setupTabs() {
   document.addEventListener("click", (e) => {
     const distEl = e.target.closest(".dist.clickable");
@@ -995,8 +1061,67 @@ function setupTabs() {
   }
 }
 
+function notifyMe(title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, { body, tag: "dash-alert" });
+    setTimeout(() => n.close(), 20000);
+  } catch (e) {}
+}
+
+let prevAuth = {};
+function checkAuthAlerts(data) {
+  for (const [pfx, info] of Object.entries(data.platforms)) {
+    const st = info.state.auth || "unknown";
+    const prev = prevAuth[pfx];
+    if ((st === "needed" || st === "error") && prev !== "needed" && prev !== "error") {
+      notifyMe(
+        `${info.label} — attention needed`,
+        st === "needed" ? "Session expired — re-login required." : "Polling error — check the dashboard."
+      );
+    }
+    prevAuth[pfx] = st;
+  }
+}
+
+let sessionWarnDismissed = false;
+function renderSessionWarn(data) {
+  const bar = $("session-warn");
+  if (!bar) return;
+  if (sessionWarnDismissed) { bar.hidden = true; return; }
+  const sess = data.sessions || {};
+  const parts = [];
+  const push = (label, days) => {
+    if (days != null && days <= 7) parts.push(`${label} in ${days} day${days === 1 ? "" : "s"}`);
+  };
+  push("Uber Eats session expires", sess.ubereats);
+  for (const [acct, days] of Object.entries(sess.demaecan || {})) {
+    const label = (storeLookup.demaecan && storeLookup.demaecan[acct]) || acct;
+    push(`${label} (Demae) session expires`, days);
+  }
+  if (parts.length) {
+    bar.innerHTML = `⚠️ ${parts.join(" · ")} — re-capture on the Mac (<code>python -m app.capture … --auto</code>).<button class="btn ghost" id="session-warn-close">✕</button>`;
+    bar.hidden = false;
+    bar.querySelector("#session-warn-close").addEventListener("click", () => {
+      bar.hidden = true;
+      sessionWarnDismissed = true;
+    });
+  } else {
+    bar.hidden = true;
+  }
+}
+
+document.addEventListener("click", function requestNotifPerm() {
+  if ("Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+  document.removeEventListener("click", requestNotifPerm);
+}, { once: true });
+
 function renderState(data) {
   setupStoreSelect(data);
+  checkAuthAlerts(data);
+  renderSessionWarn(data);
   for (const [pfx, info] of Object.entries(data.platforms)) {
     const st = info.state.auth || "unknown";
     const dot = $("authdot-" + pfx);
@@ -1006,6 +1131,7 @@ function renderState(data) {
       dot.title = st === "ok" ? "Connected" : st === "needed" ? "Re-login needed" : st;
     }
     $("reauth-" + pfx).style.display = st === "needed" ? "block" : "none";
+    if (viewDate) continue; // stats are date-based and set by renderOrders
     const sel = selectedStore[pfx];
     let sstats = info.stats;
     if (sel && (info.stores || []).length) {
@@ -1118,6 +1244,7 @@ function setupMapModal() {
 function setConn() {}
 
 async function loadOrders() {
+  if (viewDate) return; // past-day view is paused from live refresh
   try {
     const res = await fetch("/api/orders?limit=500");
     const orders = await res.json();
@@ -1147,6 +1274,7 @@ function connectSSE() {
     let event;
     try { event = JSON.parse(ev.data); } catch { return; }
     if (event.type === "new_order") {
+      if (viewDate) return;
       const pfx = event.platform;
       const o = event.order;
       const known = ordersByPlatform[pfx] || [];
@@ -1206,6 +1334,7 @@ setupSearch();
 setupPlatformTabs();
 setupMapModal();
 setupCashPill();
+setupDateView();
 connectSSE();
 setInterval(loadState, 15000);
 setInterval(loadOrders, 20000);
