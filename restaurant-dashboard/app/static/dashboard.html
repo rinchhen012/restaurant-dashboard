@@ -258,6 +258,7 @@
   .search-bar input[type=search]:focus { outline: none; border-color: var(--accent); }
   .search-results { padding: 0 16px 8px; }
   .search-note { color: var(--muted); font-size: 12px; padding: 0 0 8px; }
+  mark { background: var(--warn); color: #1a1405; border-radius: 3px; padding: 0 1px; }
   @media (max-width: 860px) {
     .fab { right: 14px; bottom: 14px; }
     .search-bar { padding: 8px 14px; }
@@ -689,6 +690,37 @@ function searchFields(o) {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
+function highlightTextNode(node, ql) {
+  const text = node.textContent;
+  const lower = text.toLowerCase();
+  if (!ql || !text || !lower.includes(ql)) return;
+  const frag = document.createDocumentFragment();
+  let idx = 0;
+  while (true) {
+    const found = lower.indexOf(ql, idx);
+    if (found === -1) {
+      frag.appendChild(document.createTextNode(text.slice(idx)));
+      break;
+    }
+    frag.appendChild(document.createTextNode(text.slice(idx, found)));
+    const mark = document.createElement("mark");
+    mark.textContent = text.slice(found, found + ql.length);
+    frag.appendChild(mark);
+    idx = found + ql.length;
+  }
+  node.replaceWith(frag);
+}
+
+function highlightResults(container, ql) {
+  if (!ql) return;
+  for (const card of container.querySelectorAll(".order")) {
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const n of nodes) highlightTextNode(n, ql);
+  }
+}
+
 function renderSearch(pfx, q) {
   const results = $("searchresults-" + pfx);
   const all = [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])]
@@ -705,6 +737,7 @@ function renderSearch(pfx, q) {
     ? `Found ${matches.length} order${matches.length === 1 ? "" : "s"}${matches.length > 50 ? " — showing first 50" : ""}`
     : "Search all of today's orders…";
   results.innerHTML = `<div class="search-note">${note}</div>${cards || '<div class="empty">No matches</div>'}`;
+  highlightResults(results, ql);
 }
 
 function setupSearch(pfx) {
