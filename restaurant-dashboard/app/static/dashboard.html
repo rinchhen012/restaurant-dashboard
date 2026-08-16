@@ -361,8 +361,8 @@
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
     </div>
     <div class="stats">
-      <div class="stat"><div class="label">Orders today</div><div class="value" id="count-ubereats">–</div></div>
-      <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-ubereats">–</div></div>
+      <div class="stat"><div class="label" id="countlabel-ubereats">Orders today</div><div class="value" id="count-ubereats">–</div></div>
+      <div class="stat"><div class="label" id="revenuelabel-ubereats">Revenue today</div><div class="value small" id="revenue-ubereats">–</div></div>
       <div class="stat"><div class="label">Active now</div><div class="value" id="active-ubereats">–</div></div>
     </div>
     <div class="status-chips" id="chips-ubereats"></div>
@@ -387,8 +387,8 @@
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
     </div>
     <div class="stats two">
-      <div class="stat"><div class="label">Orders today</div><div class="value" id="count-demaecan">–</div></div>
-      <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-demaecan">–</div></div>
+      <div class="stat"><div class="label" id="countlabel-demaecan">Orders today</div><div class="value" id="count-demaecan">–</div></div>
+      <div class="stat"><div class="label" id="revenuelabel-demaecan">Revenue today</div><div class="value small" id="revenue-demaecan">–</div></div>
     </div>
     <div class="section-title" id="delivery-title-demaecan">Delivery time (waiting time)</div>
     <div class="dt-widget" id="dt-widget">
@@ -685,6 +685,7 @@ function renderOrders(platform) {
       : "No orders on this date";
     reconcileList(el, list, platform, emptyText);
     // date-view stats follow the selected store filter
+    updateStatLabels(platform);
     const revenue = list.reduce((s, o) => s + (o.total || 0), 0);
     setText("count-" + platform, list.length);
     setText("revenue-" + platform, money(revenue));
@@ -748,7 +749,7 @@ function setupStoreSelect(data) {
       selectedStore[pfx] = sel.value;
       localStorage.setItem("store-" + pfx, selectedStore[pfx]);
       renderAll(pfx);
-      if (pfx === "demaecan" && lastState) renderState(lastState);
+      if (lastState) renderState(lastState);
     });
   }
 }
@@ -1189,6 +1190,13 @@ document.addEventListener("click", function requestNotifPerm() {
   document.removeEventListener("click", requestNotifPerm);
 }, { once: true });
 
+function updateStatLabels(pfx) {
+  const sel = selectedStore[pfx];
+  const label = sel && storeLookup[pfx] && storeLookup[pfx][sel] ? storeLookup[pfx][sel] : null;
+  setText("countlabel-" + pfx, label ? `Orders · ${label}` : "Orders today");
+  setText("revenuelabel-" + pfx, label ? `Revenue · ${label}` : "Revenue today");
+}
+
 function renderState(data) {
   setupStoreSelect(data);
   checkAuthAlerts(data);
@@ -1203,13 +1211,17 @@ function renderState(data) {
     }
     $("reauth-" + pfx).style.display = st === "needed" ? "block" : "none";
     if (viewDate) continue; // stats are date-based and set by renderOrders
-    // stat cards always show the real day totals across ALL stores;
-    // the store dropdown only filters the order lists below.
-    const sstats = info.stats;
+    updateStatLabels(pfx);
+    const sel = selectedStore[pfx];
+    let sstats = info.stats;
+    if (sel && (info.stores || []).length) {
+      const found = info.stores.find(s => s.uuid === sel);
+      if (found) sstats = { orders: found.orders, revenue: found.revenue };
+    }
     setText("count-" + pfx, sstats.orders ?? 0);
     setText("revenue-" + pfx, money(sstats.revenue));
     const activeEl = $("active-" + pfx);
-    if (activeEl) setText("active-" + pfx, (ordersByPlatform[pfx] || []).length);
+    if (activeEl) setText("active-" + pfx, filtered(ordersByPlatform[pfx], pfx).length);
     updateTabCounts(pfx);
   }
   if (data.delivery_time) {
