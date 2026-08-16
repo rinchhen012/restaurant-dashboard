@@ -5,6 +5,7 @@ Uses the same internal API the manager portal web app calls:
   POST /manager/api/getHistoricOrders -> past orders (today = completed history)
 Store IDs / request templates were captured from a real session.
 """
+import asyncio
 import re
 from datetime import datetime
 
@@ -57,6 +58,25 @@ DEFAULT_HISTORIC_BODY = {
     },
     "sort": {"sortColumn": "requestedAt", "sortDirection": "DESC"},
     "pagination": {"limit": 50, "cursor": "", "nextTable": ""},
+}
+
+# Past-date history requires BOTH pagingInfo and pagination keys together
+# (captured from the portal's Custom date picker).
+PAST_HISTORIC_BODY = {
+    "filters": {
+        "currentTab": "",
+        "displayCurrencyCode": "",
+        "locationConstraints": {"cities": [], "countries": [], "locationUuids": []},
+        "dateFilter": {"startDate": None, "endDate": None, "lastUpdatedAt": ""},
+        "isEatsPassSubscriber": False,
+        "search": None,
+        "orderIssuesV2": [],
+        "issueOrderStatusFilter": [],
+        "displayByocIssues": False,
+    },
+    "sort": {"sortColumn": "SORT_COLUMN_ORDER_COMPLETED_AT", "sortDirection": "SORT_DIRECTION_DESC"},
+    "pagingInfo": {"cursor": "", "limit": 50, "nextTable": "liveOrders"},
+    "pagination": {"cursor": "", "nextTable": "historyOrders", "limit": 50},
 }
 
 
@@ -245,14 +265,34 @@ class UberEatsAdapter(Adapter):
         return out
 
     async def fetch_orders_for_date(self, date: str) -> list[dict]:
-        """All orders for a specific (past) date via the historic list."""
-        body = json_dup(self.historic_body)
+        """All orders for a specific date, enriched with items. Past dates need
+        the portal's combined pagingInfo+pagination body; today uses the
+        standard one."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        if date == today:
+            body = json_dup(self.historic_body)
+        else:
+            body = json_dup(PAST_HISTORIC_BODY)
+            body["filters"]["locationConstraints"]["locationUuids"] = self.endpoints.get("location_uuids", [])
         body["filters"]["dateFilter"]["startDate"] = f"{date} 00:00:00"
         body["filters"]["dateFilter"]["endDate"] = f"{date} 23:59:59"
         resp = await self._post("getHistoricOrders", body)
         rows = pick(resp, "data.orders") or []
         parsed = [self._parse_row(r, "historic") for r in rows]
-        return [o for o in parsed if o["external_id"]]
+        parsed = [o for o in parsed if o["external_id"]]
+        sem = asyncio.Semaphore(5)
+
+        async def enrich(o: dict) -> dict:
+            async with sem:
+                try:
+                    items = await self.fetch_order_items(o)
+                    if items:
+                        o["items"] = items
+                except Exception:
+                    pass
+            return o
+
+        return list(await asyncio.gather(*[enrich(o) for o in parsed]))
 
     async def _post(self, endpoint: str, body: dict) -> dict:
         url = f"{BASE}/{endpoint}?localeCode=en"

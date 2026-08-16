@@ -116,14 +116,11 @@ async def api_orders_by_date(platform: str, date: str):
                 await adapter.close()
         return out
     if platform == "ubereats":
-        today = datetime.now().strftime("%Y-%m-%d")
-        if date == today:
-            adapter = UberEatsAdapter()
-            try:
-                return await adapter.fetch_orders_for_date(date)
-            finally:
-                await adapter.close()
-        return db.list_orders(platform="ubereats", today_only=False, date=date)
+        adapter = UberEatsAdapter()
+        try:
+            return await adapter.fetch_orders_for_date(date)
+        finally:
+            await adapter.close()
     return []
 
 

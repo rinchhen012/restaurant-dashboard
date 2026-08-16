@@ -694,9 +694,7 @@ function renderOrders(platform) {
     const list = filtered(all, platform);
     let emptyText = "No orders on this date";
     if (platform === "ubereats") {
-      emptyText = (uberFirstDate && viewDate < uberFirstDate)
-        ? `Uber's portal only shares today's orders — history starts ${uberFirstDate}. Run the dashboard daily to build it`
-        : "No Uber orders recorded for this date";
+      emptyText = "No Uber orders on this date";
     }
     reconcileList(el, list, platform, emptyText);
     // date-view stats follow the selected store filter
