@@ -518,7 +518,7 @@ function metaBlock(order) {
   const rows = [];
   if (m.remarks) {
     const en = m.remarks_en ? `<div class="trans-en">${escapeHtml(m.remarks_en)}</div>` : "";
-    rows.push(`<div class="meta-remark">備考: ${escapeHtml(m.remarks)}${en}</div>`);
+    rows.push(`<div class="meta-remark">Note: ${escapeHtml(m.remarks)}${en}</div>`);
   }
   const kv = [];
   if (m.delivery_time) kv.push(`<span class="delivery">Delivery ${fmtTime(m.delivery_time)}</span>`);
