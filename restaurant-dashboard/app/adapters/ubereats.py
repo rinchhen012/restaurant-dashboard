@@ -9,6 +9,7 @@ import asyncio
 import re
 from datetime import datetime
 
+from app import db
 from app.adapters.base import Adapter, pick, to_float
 
 BASE = "https://merchants.ubereats.com/manager/api"
@@ -280,14 +281,24 @@ class UberEatsAdapter(Adapter):
         rows = pick(resp, "data.orders") or []
         parsed = [self._parse_row(r, "historic") for r in rows]
         parsed = [o for o in parsed if o["external_id"]]
-        sem = asyncio.Semaphore(5)
+        sem = asyncio.Semaphore(10)
 
         async def enrich(o: dict) -> dict:
             async with sem:
+                oid = o["external_id"]
+                cached = db.get_cached_details(self.platform, oid)
+                if cached:
+                    o["items"] = cached[0]
+                    return o
+                stored = db.get_order_items(self.platform, oid)
+                if stored and stored[0]:
+                    o["items"] = stored[0]
+                    return o
                 try:
                     items = await self.fetch_order_items(o)
                     if items:
                         o["items"] = items
+                    db.save_cached_details(self.platform, oid, o.get("items") or [], None)
                 except Exception:
                     pass
             return o

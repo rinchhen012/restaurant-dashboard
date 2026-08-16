@@ -408,16 +408,24 @@ class DemaeCanAdapter(Adapter):
         payload = resp.json()
         orders = pick(payload, "data.searchOrderList") or []
         parsed = [self._parse_order(o) for o in orders if o.get("orderId")]
-        sem = asyncio.Semaphore(5)
+        sem = asyncio.Semaphore(10)
 
         async def enrich(o: dict) -> dict:
             async with sem:
+                oid = o["external_id"]
+                cached = db.get_cached_details(self.platform, oid)
+                if cached:
+                    o["items"], o["meta"] = cached
+                    return o
+                stored = db.get_order_items(self.platform, oid)
+                if stored and (stored[0] or stored[1]):
+                    o["items"], o["meta"] = stored
+                    return o
                 try:
                     items, meta = await self.fetch_order_details(o)
-                    if items:
-                        o["items"] = items
-                    if meta:
-                        o["meta"] = meta
+                    if items or meta:
+                        o["items"], o["meta"] = items, meta
+                    db.save_cached_details(self.platform, oid, o.get("items") or [], o.get("meta"))
                 except Exception:
                     pass
             return o

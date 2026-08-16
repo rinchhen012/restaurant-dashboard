@@ -38,6 +38,15 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS order_details_cache (
+    platform TEXT NOT NULL,
+    external_id TEXT NOT NULL,
+    items_json TEXT,
+    meta_json TEXT,
+    updated_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (platform, external_id)
+);
 """
 
 
@@ -154,6 +163,64 @@ def order_has_items(platform: str, external_id: str) -> bool:
     except Exception:
         return False
     return len(items) > 0
+
+
+def get_order_items(platform: str, external_id: str) -> tuple[list, dict] | None:
+    """Items + meta already stored on the order row (e.g. today's enrichment)."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT items_json, meta_json FROM orders WHERE platform=? AND external_id=?",
+            (platform, external_id),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        items = json.loads(row["items_json"] or "[]")
+    except Exception:
+        items = []
+    try:
+        meta = json.loads(row["meta_json"] or "{}")
+    except Exception:
+        meta = {}
+    if not items and not meta:
+        return None
+    return items, meta
+
+
+def get_cached_details(platform: str, external_id: str) -> tuple[list, dict] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT items_json, meta_json FROM order_details_cache WHERE platform=? AND external_id=?",
+            (platform, external_id),
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        items = json.loads(row["items_json"] or "[]")
+    except Exception:
+        items = []
+    try:
+        meta = json.loads(row["meta_json"] or "{}")
+    except Exception:
+        meta = {}
+    if not items and not meta:
+        return None
+    return items, meta
+
+
+def save_cached_details(platform: str, external_id: str, items: list, meta: dict | None):
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO order_details_cache (platform, external_id, items_json, meta_json, updated_at)
+            VALUES (?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(platform, external_id) DO UPDATE SET
+                items_json=excluded.items_json,
+                meta_json=excluded.meta_json,
+                updated_at=datetime('now')
+            """,
+            (platform, external_id, json.dumps(items or [], ensure_ascii=False), json.dumps(meta or {}, ensure_ascii=False)),
+        )
 
 
 def list_orders(platform: str = None, limit: int = 100, today_only: bool = False, date: str = None) -> list[dict]:
