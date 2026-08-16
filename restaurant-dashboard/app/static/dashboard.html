@@ -686,14 +686,14 @@ function searchFields(o) {
   return [
     o.order_code, o.external_id, o.status, o.customer, m.customer, m.customer_en,
     m.address, m.address_en, m.phone, o.store_name, itemText,
-    o.total != null ? String(o.total) : ""
+    o.total != null ? String(o.total) + " " + money(o.total) : ""
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
 function highlightTextNode(node, ql) {
   const text = node.textContent;
   const lower = text.toLowerCase();
-  if (!ql || !text || !lower.includes(ql)) return;
+  if (!ql || !text || !lower.includes(ql)) return false;
   const frag = document.createDocumentFragment();
   let idx = 0;
   while (true) {
@@ -709,15 +709,28 @@ function highlightTextNode(node, ql) {
     idx = found + ql.length;
   }
   node.replaceWith(frag);
+  return true;
 }
 
 function highlightResults(container, ql) {
   if (!ql) return;
+  const digitsQ = ql.replace(/[^0-9]/g, "");
   for (const card of container.querySelectorAll(".order")) {
     const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
-    for (const n of nodes) highlightTextNode(n, ql);
+    let matched = false;
+    for (const n of nodes) {
+      if (highlightTextNode(n, ql)) matched = true;
+    }
+    if (!matched && digitsQ) {
+      // formatted amounts ("¥3,760") don't contain the raw query ("3760")
+      const totalEl = card.querySelector(".total");
+      if (totalEl && totalEl.textContent.replace(/[^0-9]/g, "").includes(digitsQ)) {
+        totalEl.innerHTML = `<mark>${totalEl.textContent}</mark>`;
+        matched = true;
+      }
+    }
   }
 }
 
