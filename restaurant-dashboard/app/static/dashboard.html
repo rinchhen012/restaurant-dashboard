@@ -33,10 +33,11 @@
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
   .date-pick {
-    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-    border-radius: 8px; padding: 4px 8px; font-size: 12px; color-scheme: dark;
+    flex: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
   }
-  .date-pick:focus { outline: none; border-color: var(--accent); }
+  .date-pick:hover { border-color: var(--accent); }
+  .date-input-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
   .date-today { padding: 4px 10px; font-size: 12px; }
   .warn-banner {
     background: #3d2c0e; color: #fbbf24; padding: 8px 16px; font-size: 12.5px;
@@ -353,7 +354,8 @@
     <div class="panel-head">
       <div class="logo uber">U</div>
       <h2>Uber Eats</h2>
-      <input type="date" id="date-picker-ubereats" class="date-pick" title="View a past day">
+      <button type="button" class="date-pick" id="date-btn-ubereats">Today</button>
+      <input type="date" id="date-picker-ubereats" class="date-input-hidden" title="View a past day">
       <button class="btn ghost date-today" id="date-today-ubereats" hidden>Today</button>
       <select id="store-ubereats" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
@@ -378,7 +380,8 @@
     <div class="panel-head">
       <div class="logo demae">D</div>
       <h2>Demae-Can</h2>
-      <input type="date" id="date-picker-demaecan" class="date-pick" title="View a past day">
+      <button type="button" class="date-pick" id="date-btn-demaecan">Today</button>
+      <input type="date" id="date-picker-demaecan" class="date-input-hidden" title="View a past day">
       <button class="btn ghost date-today" id="date-today-demaecan" hidden>Today</button>
       <select id="store-demaecan" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
@@ -987,9 +990,33 @@ function openCashModal() {
 let viewDate = null;
 let dateOrders = { ubereats: [], demaecan: [] };
 
+function fmtDateShort(dateStr) {
+  if (!dateStr) return "Today";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function updateDateButtonTexts() {
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const btn = $(`date-btn-${pfx}`);
+    const input = $(`date-picker-${pfx}`);
+    if (btn && input) btn.textContent = fmtDateShort(input.value);
+  }
+}
+
 function setupDateView() {
   for (const pfx of Object.keys(PLATFORMS)) {
-    $(`date-picker-${pfx}`).addEventListener("change", (e) => {
+    const btn = $(`date-btn-${pfx}`);
+    const input = $(`date-picker-${pfx}`);
+    btn.addEventListener("click", () => {
+      if (typeof input.showPicker === "function") {
+        try { input.showPicker(); return; } catch (e) {}
+      }
+      input.classList.remove("date-input-hidden");
+      input.focus();
+    });
+    input.addEventListener("change", (e) => {
+      updateDateButtonTexts();
       setDateView(e.target.value || "");
     });
     $(`date-today-${pfx}`).addEventListener("click", () => {
@@ -1005,6 +1032,7 @@ function syncDatePickers(val) {
     const el = $(`date-picker-${pfx}`);
     if (el && el.value !== v) el.value = v;
   }
+  updateDateButtonTexts();
 }
 
 async function setDateView(dateStr) {
