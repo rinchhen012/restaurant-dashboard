@@ -37,17 +37,13 @@
     border-radius: 8px; padding: 4px 8px; font-size: 12px; color-scheme: dark;
   }
   .date-pick:focus { outline: none; border-color: var(--accent); }
+  .date-today { padding: 4px 10px; font-size: 12px; }
   .warn-banner {
     background: #3d2c0e; color: #fbbf24; padding: 8px 16px; font-size: 12.5px;
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
   .warn-banner code { background: rgba(0, 0, 0, .3); padding: 1px 5px; border-radius: 4px; }
   .warn-banner .btn { margin-left: auto; padding: 3px 10px; }
-  .date-strip {
-    background: #123a6b; color: #9ecbff; padding: 7px 16px; font-size: 13px; font-weight: 600;
-    display: flex; align-items: center; gap: 12px;
-  }
-  .date-strip .btn { padding: 3px 12px; font-size: 12.5px; }
   .cash-row, .cash-total {
     display: flex; align-items: center; gap: 12px; padding: 9px 12px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
@@ -343,10 +339,6 @@
 </header>
 
 <div class="warn-banner" id="session-warn" hidden></div>
-<div class="date-strip" id="date-strip" hidden>
-  <span id="date-strip-label"></span>
-  <button class="btn ghost" id="date-strip-today">Back to Today</button>
-</div>
 
 <div class="toasts" id="toasts"></div>
 
@@ -361,6 +353,7 @@
       <div class="logo uber">U</div>
       <h2>Uber Eats</h2>
       <input type="date" id="date-picker-ubereats" class="date-pick" title="View a past day">
+      <button class="btn ghost date-today" id="date-today-ubereats" hidden>Today</button>
       <select id="store-ubereats" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
     </div>
@@ -385,6 +378,7 @@
       <div class="logo demae">D</div>
       <h2>Demae-Can</h2>
       <input type="date" id="date-picker-demaecan" class="date-pick" title="View a past day">
+      <button class="btn ghost date-today" id="date-today-demaecan" hidden>Today</button>
       <select id="store-demaecan" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
     </div>
@@ -990,8 +984,11 @@ function setupDateView() {
     $(`date-picker-${pfx}`).addEventListener("change", (e) => {
       setDateView(e.target.value || "");
     });
+    $(`date-today-${pfx}`).addEventListener("click", () => {
+      syncDatePickers("");
+      setDateView("");
+    });
   }
-  $("date-strip-today").addEventListener("click", () => { syncDatePickers(""); setDateView(""); });
 }
 
 function syncDatePickers(val) {
@@ -1005,13 +1002,9 @@ function syncDatePickers(val) {
 async function setDateView(dateStr) {
   viewDate = dateStr || null;
   syncDatePickers(viewDate);
-  const strip = $("date-strip");
-  if (viewDate) {
-    const d = new Date(viewDate + "T00:00:00");
-    $("date-strip-label").textContent = `Viewing: ${d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} — one day only`;
-    strip.hidden = false;
-  } else {
-    strip.hidden = true;
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const btn = $(`date-today-${pfx}`);
+    if (btn) btn.hidden = !viewDate;
   }
   if (!viewDate) {
     dateOrders = { ubereats: [], demaecan: [] };
