@@ -692,9 +692,12 @@ function renderOrders(platform) {
     const all = (dateOrders[platform] || []).slice()
       .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
     const list = filtered(all, platform);
-    const emptyText = platform === "ubereats"
-      ? "No Uber orders recorded for this date — Uber history is only kept while the dashboard runs"
-      : "No orders on this date";
+    let emptyText = "No orders on this date";
+    if (platform === "ubereats") {
+      emptyText = (uberFirstDate && viewDate < uberFirstDate)
+        ? `Uber's portal only shares today's orders — history starts ${uberFirstDate}. Run the dashboard daily to build it`
+        : "No Uber orders recorded for this date";
+    }
     reconcileList(el, list, platform, emptyText);
     // date-view stats follow the selected store filter
     updateStatLabels(platform);
@@ -1214,8 +1217,11 @@ function updateStatLabels(pfx) {
   setText("revenuelabel-" + pfx, label ? `Revenue · ${label}` : "Revenue today");
 }
 
+let uberFirstDate = null;
+
 function renderState(data) {
   setupStoreSelect(data);
+  if (data.uber_first_date) uberFirstDate = data.uber_first_date;
   checkAuthAlerts(data);
   renderSessionWarn(data);
   for (const [pfx, info] of Object.entries(data.platforms)) {

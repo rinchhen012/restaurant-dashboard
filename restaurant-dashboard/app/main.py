@@ -91,6 +91,7 @@ async def api_state():
         "platforms": platforms,
         "delivery_time": delivery,
         "sessions": sessions,
+        "uber_first_date": db.min_order_date("ubereats"),
     }
 
 

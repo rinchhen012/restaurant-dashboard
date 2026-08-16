@@ -335,6 +335,15 @@ def load_session(platform: str) -> list[dict] | None:
         return None
 
 
+def min_order_date(platform: str) -> str | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT MIN(date(COALESCE(placed_at, first_seen_at))) AS d FROM orders WHERE platform=?",
+            (platform,),
+        ).fetchone()
+    return row["d"] if row and row["d"] else None
+
+
 def session_info(platform: str) -> dict | None:
     with get_conn() as conn:
         row = conn.execute(
