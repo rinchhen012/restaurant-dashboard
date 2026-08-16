@@ -625,11 +625,14 @@ function buildCardNode(o, platform) {
   return node;
 }
 
-function reconcileList(container, orders, platform) {
+function reconcileList(container, orders, platform, emptyText) {
   const emptyEl = container.querySelector(":scope > .empty");
   if (!orders.length) {
+    const msg = emptyText || (container.id.startsWith("history") ? "No completed orders" : "No orders yet");
     if (!emptyEl) {
-      container.innerHTML = `<div class="empty">${container.id.startsWith("history") ? "No completed orders" : "No orders yet"}</div>`;
+      container.innerHTML = `<div class="empty">${msg}</div>`;
+    } else if (emptyEl.textContent !== msg) {
+      emptyEl.textContent = msg;
     }
     return;
   }
@@ -673,7 +676,10 @@ function renderOrders(platform) {
   if (viewDate) {
     const list = filtered(dateOrders[platform] || [], platform).slice()
       .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
-    reconcileList(el, list, platform);
+    const emptyText = platform === "ubereats"
+      ? "No Uber orders recorded for this date — Uber history is only kept while the dashboard runs"
+      : "No orders on this date";
+    reconcileList(el, list, platform, emptyText);
     const revenue = list.reduce((s, o) => s + (o.total || 0), 0);
     setText("count-" + platform, list.length);
     setText("revenue-" + platform, money(revenue));
@@ -1020,14 +1026,17 @@ async function setDateView(dateStr) {
     return;
   }
   for (const pfx of Object.keys(PLATFORMS)) {
+    const loadingEl = $("orders-" + pfx);
+    if (loadingEl) loadingEl.innerHTML = '<div class="empty">Loading this date…</div>';
+  }
+  for (const pfx of Object.keys(PLATFORMS)) {
     try {
       const res = await fetch(`/api/orders/date?platform=${pfx}&date=${viewDate}`);
       dateOrders[pfx] = await res.json();
     } catch (e) {
       dateOrders[pfx] = [];
     }
-  }
-  for (const pfx of Object.keys(PLATFORMS)) {
+    // render this platform as soon as its data is ready (Demae enrichment can be slow)
     const tabs = $("tabs-" + pfx); if (tabs) tabs.style.display = "none";
     const chips = $("chips-" + pfx); if (chips) chips.style.display = "none";
     const hist = $("history-" + pfx); if (hist) hist.style.display = "none";

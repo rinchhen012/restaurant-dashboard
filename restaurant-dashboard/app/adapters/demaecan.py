@@ -398,7 +398,7 @@ class DemaeCanAdapter(Adapter):
         return out, meta
 
     async def fetch_orders_for_date(self, date: str) -> list[dict]:
-        """All orders for a specific (past) date."""
+        """All orders for a specific (past) date, enriched with items + meta."""
         body = self._order_search_body()
         body["orderDatetimeFrom"] = f"{date}T00:00:00+09:00"
         body["orderDatetimeTo"] = f"{date}T23:59:59+09:00"
@@ -407,8 +407,22 @@ class DemaeCanAdapter(Adapter):
             raise RuntimeError(f"{self.label}: order search -> HTTP {resp.status_code}: {resp.text[:300]}")
         payload = resp.json()
         orders = pick(payload, "data.searchOrderList") or []
-        parsed = [self._parse_order(o) for o in orders]
-        return [o for o in parsed if o["external_id"]]
+        parsed = [self._parse_order(o) for o in orders if o.get("orderId")]
+        sem = asyncio.Semaphore(5)
+
+        async def enrich(o: dict) -> dict:
+            async with sem:
+                try:
+                    items, meta = await self.fetch_order_details(o)
+                    if items:
+                        o["items"] = items
+                    if meta:
+                        o["meta"] = meta
+                except Exception:
+                    pass
+            return o
+
+        return list(await asyncio.gather(*[enrich(o) for o in parsed]))
 
     async def fetch_order_items(self, order: dict) -> list[dict]:
         items, _ = await self.fetch_order_details(order)

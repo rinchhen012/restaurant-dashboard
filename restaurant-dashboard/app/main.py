@@ -101,7 +101,10 @@ async def api_orders(platform: str = None, limit: int = 500, today: bool = True)
 
 @app.get("/api/orders/date")
 async def api_orders_by_date(platform: str, date: str):
-    """Orders for a specific past date, fetched live from the portals."""
+    """Orders for a specific date. Demae fetches live from the portal (with
+    full item/meta enrichment); Uber's portal API only returns today's
+    orders, so past Uber days come from the local DB (recorded while the
+    dashboard ran)."""
     if platform == "demaecan":
         out = []
         for acct in account_configs():
@@ -112,11 +115,14 @@ async def api_orders_by_date(platform: str, date: str):
                 await adapter.close()
         return out
     if platform == "ubereats":
-        adapter = UberEatsAdapter()
-        try:
-            return await adapter.fetch_orders_for_date(date)
-        finally:
-            await adapter.close()
+        today = datetime.now().strftime("%Y-%m-%d")
+        if date == today:
+            adapter = UberEatsAdapter()
+            try:
+                return await adapter.fetch_orders_for_date(date)
+            finally:
+                await adapter.close()
+        return db.list_orders(platform="ubereats", today_only=False, date=date)
     return []
 
 
