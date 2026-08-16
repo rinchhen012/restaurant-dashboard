@@ -680,11 +680,12 @@ function renderOrders(platform) {
       ? "No Uber orders recorded for this date — Uber history is only kept while the dashboard runs"
       : "No orders on this date";
     reconcileList(el, list, platform, emptyText);
-    const revenue = list.reduce((s, o) => s + (o.total || 0), 0);
-    setText("count-" + platform, list.length);
+    const all = dateOrders[platform] || [];
+    const revenue = all.reduce((s, o) => s + (o.total || 0), 0);
+    setText("count-" + platform, all.length);
     setText("revenue-" + platform, money(revenue));
     const activeEl = $("active-" + platform);
-    if (activeEl) setText("active-" + platform, list.length);
+    if (activeEl) setText("active-" + platform, all.length);
     return;
   }
   reconcileList(el, filtered(ordersByPlatform[platform], platform), platform);
@@ -1164,16 +1165,13 @@ function renderState(data) {
     }
     $("reauth-" + pfx).style.display = st === "needed" ? "block" : "none";
     if (viewDate) continue; // stats are date-based and set by renderOrders
-    const sel = selectedStore[pfx];
-    let sstats = info.stats;
-    if (sel && (info.stores || []).length) {
-      const found = info.stores.find(s => s.uuid === sel);
-      if (found) sstats = { orders: found.orders, revenue: found.revenue };
-    }
+    // stat cards always show the real day totals across ALL stores;
+    // the store dropdown only filters the order lists below.
+    const sstats = info.stats;
     setText("count-" + pfx, sstats.orders ?? 0);
     setText("revenue-" + pfx, money(sstats.revenue));
     const activeEl = $("active-" + pfx);
-    if (activeEl) setText("active-" + pfx, filtered(ordersByPlatform[pfx], pfx).length);
+    if (activeEl) setText("active-" + pfx, (ordersByPlatform[pfx] || []).length);
     updateTabCounts(pfx);
   }
   if (data.delivery_time) {
