@@ -284,7 +284,7 @@ class DemaeCanAdapter(Adapter):
             "status": "CHANGED" if change else "NEW",
             "status_raw": str(change) if change else "NEW",
             "items": [],
-            "total": to_float(pick(o, "shopSalesAmount", "totalAmount", "orderAmount")),
+            "total": to_float(pick(o, "invoiceAmount", "shopSalesAmount", "totalAmount", "orderAmount")),
             "currency": "JPY",
             "placed_at": placed_at,
             "customer": pick(o, "ordererName") or "",
