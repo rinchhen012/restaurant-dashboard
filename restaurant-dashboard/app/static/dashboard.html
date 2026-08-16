@@ -716,20 +716,19 @@ function highlightResults(container, ql) {
   if (!ql) return;
   const digitsQ = ql.replace(/[^0-9]/g, "");
   for (const card of container.querySelectorAll(".order")) {
+    const totalEl = card.querySelector(".total");
+    const totalDigits = totalEl ? totalEl.textContent.replace(/[^0-9]/g, "") : "";
+    if (totalEl && digitsQ && totalDigits.includes(digitsQ)) {
+      // always highlight the amount when its digits match (formatted "¥3,760"
+      // doesn't contain the raw query "3760"), even if other fields match too
+      totalEl.innerHTML = `<mark>${totalEl.textContent}</mark>`;
+    }
     const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);
-    let matched = false;
     for (const n of nodes) {
-      if (highlightTextNode(n, ql)) matched = true;
-    }
-    if (!matched && digitsQ) {
-      // formatted amounts ("¥3,760") don't contain the raw query ("3760")
-      const totalEl = card.querySelector(".total");
-      if (totalEl && totalEl.textContent.replace(/[^0-9]/g, "").includes(digitsQ)) {
-        totalEl.innerHTML = `<mark>${totalEl.textContent}</mark>`;
-        matched = true;
-      }
+      if (totalEl && totalEl.contains(n)) continue; // amount handled above
+      highlightTextNode(n, ql);
     }
   }
 }
