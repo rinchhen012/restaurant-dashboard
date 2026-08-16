@@ -677,18 +677,19 @@ function renderOrders(platform) {
   const el = $("orders-" + platform);
   if (!el) return;
   if (viewDate) {
-    const list = filtered(dateOrders[platform] || [], platform).slice()
+    const all = (dateOrders[platform] || []).slice()
       .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+    const list = filtered(all, platform);
     const emptyText = platform === "ubereats"
       ? "No Uber orders recorded for this date — Uber history is only kept while the dashboard runs"
       : "No orders on this date";
     reconcileList(el, list, platform, emptyText);
-    const all = dateOrders[platform] || [];
-    const revenue = all.reduce((s, o) => s + (o.total || 0), 0);
-    setText("count-" + platform, all.length);
+    // date-view stats follow the selected store filter
+    const revenue = list.reduce((s, o) => s + (o.total || 0), 0);
+    setText("count-" + platform, list.length);
     setText("revenue-" + platform, money(revenue));
     const activeEl = $("active-" + platform);
-    if (activeEl) setText("active-" + platform, all.length);
+    if (activeEl) setText("active-" + platform, list.length);
     return;
   }
   reconcileList(el, filtered(ordersByPlatform[platform], platform), platform);
