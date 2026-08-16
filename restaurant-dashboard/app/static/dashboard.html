@@ -259,6 +259,14 @@
   .search-results { padding: 0 16px 8px; }
   .search-note { color: var(--muted); font-size: 12px; padding: 0 0 8px; }
   mark { background: var(--warn); color: #1a1405; border-radius: 3px; padding: 0 1px; }
+  .search-row { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .search-row-main { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; flex-wrap: wrap; }
+  .search-row-main:hover { background: var(--panel); }
+  .search-row-main .time { font-size: 13px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
+  .search-row-main .oid { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .search-row-main .total { margin-left: auto; font-size: 15px; font-weight: 800; color: #9ecbff; font-variant-numeric: tabular-nums; }
+  .search-row-detail { display: none; padding: 10px 12px; border-top: 1px dashed var(--border); }
+  .search-row.open .search-row-detail { display: block; }
   @media (max-width: 860px) {
     .fab { right: 14px; bottom: 14px; }
     .search-bar { padding: 8px 14px; }
@@ -288,6 +296,10 @@
       <select id="store-ubereats" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
     </div>
+    <div class="search-bar" id="searchbar-ubereats" hidden>
+      <input type="search" id="searchinput-ubereats" placeholder="Search orders…" autocomplete="off">
+      <button class="btn ghost" id="searchclose-ubereats" title="Close">✕</button>
+    </div>
     <div class="stats">
       <div class="stat"><div class="label">Orders today</div><div class="value" id="count-ubereats">–</div></div>
       <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-ubereats">–</div></div>
@@ -300,11 +312,6 @@
     </div>
     <div class="orders" id="orders-ubereats"><div class="empty">No orders yet</div></div>
     <div class="orders" id="history-ubereats" style="display:none"><div class="empty">No completed orders</div></div>
-    <div class="search-bar" id="searchbar-ubereats" hidden>
-      <input type="search" id="searchinput-ubereats" placeholder="Search orders (code, customer, item, address, phone…)" autocomplete="off">
-      <button class="btn ghost" id="searchclose-ubereats" title="Close">✕</button>
-    </div>
-    <div class="orders search-results" id="searchresults-ubereats" hidden></div>
     <div class="reauth" id="reauth-ubereats">Session expired — run <code>python -m app.capture ubereats</code> again to re-login.</div>
     <button class="fab" id="fab-ubereats" title="Search orders">🔍</button>
   </div>
@@ -315,6 +322,10 @@
       <h2>Demae-Can</h2>
       <select id="store-demaecan" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
+    </div>
+    <div class="search-bar" id="searchbar-demaecan" hidden>
+      <input type="search" id="searchinput-demaecan" placeholder="Search orders…" autocomplete="off">
+      <button class="btn ghost" id="searchclose-demaecan" title="Close">✕</button>
     </div>
     <div class="stats two">
       <div class="stat"><div class="label">Orders today</div><div class="value" id="count-demaecan">–</div></div>
@@ -333,11 +344,6 @@
     </div>
     <div class="orders" id="orders-demaecan"><div class="empty">No orders yet</div></div>
     <div class="orders" id="history-demaecan" style="display:none"><div class="empty">No completed orders</div></div>
-    <div class="search-bar" id="searchbar-demaecan" hidden>
-      <input type="search" id="searchinput-demaecan" placeholder="Search orders (code, customer, item, address, phone…)" autocomplete="off">
-      <button class="btn ghost" id="searchclose-demaecan" title="Close">✕</button>
-    </div>
-    <div class="orders search-results" id="searchresults-demaecan" hidden></div>
     <div class="reauth" id="reauth-demaecan">Session expired — run <code>python -m app.capture demaecan</code> again to re-login.</div>
     <button class="fab" id="fab-demaecan" title="Search orders">🔍</button>
   </div>
@@ -715,7 +721,7 @@ function highlightTextNode(node, ql) {
 function highlightResults(container, ql) {
   if (!ql) return;
   const digitsQ = ql.replace(/[^0-9]/g, "");
-  for (const card of container.querySelectorAll(".order")) {
+  for (const card of container.querySelectorAll(".order, .search-row")) {
     const totalEl = card.querySelector(".total");
     const totalDigits = totalEl ? totalEl.textContent.replace(/[^0-9]/g, "") : "";
     if (totalEl && digitsQ && totalDigits.includes(digitsQ)) {
@@ -733,40 +739,86 @@ function highlightResults(container, ql) {
   }
 }
 
+let searchExpanded = { ubereats: new Set(), demaecan: new Set() };
+
+function findOrder(pfx, eid) {
+  return [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])].find(o => o.external_id === eid);
+}
+
+function searchRowHTML(o, pfx) {
+  const code = o.order_code || o.external_id || "";
+  return `<div class="search-row" data-eid="${escapeHtml(o.external_id)}" data-pfx="${pfx}">
+    <div class="search-row-main">
+      <span class="time">${fmtTime(o.placed_at || o.first_seen_at)}</span>
+      <span class="oid">${escapeHtml(code)}</span>
+      ${customerName(o)}
+      <span class="total">${money(o.total)}</span>
+    </div>
+    <div class="search-row-detail"></div>
+  </div>`;
+}
+
 function renderSearch(pfx, q) {
-  const results = $("searchresults-" + pfx);
+  const ql = q.trim().toLowerCase();
+  const ordersEl = $("orders-" + pfx);
+  const histEl = $("history-" + pfx);
+  if (!ql) {
+    // restore the normal list view exactly as it was
+    histEl.style.display = activeTab[pfx] === "completed" ? "" : "none";
+    renderAll(pfx);
+    return;
+  }
+  histEl.style.display = "none";
   const all = [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])]
     .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
-  const ql = q.trim().toLowerCase();
-  const matches = ql ? all.filter(o => searchFields(o).includes(ql)) : all;
-  const shown = matches.slice(0, 50);
-  const cards = shown.map(o => {
-    const wrap = document.createElement("div");
-    wrap.innerHTML = orderCard(o, pfx, false);
-    return wrap.firstElementChild.outerHTML;
-  }).join("");
-  const note = ql
-    ? `Found ${matches.length} order${matches.length === 1 ? "" : "s"}${matches.length > 50 ? " — showing first 50" : ""}`
-    : "Search all of today's orders…";
-  results.innerHTML = `<div class="search-note">${note}</div>${cards || '<div class="empty">No matches</div>'}`;
-  highlightResults(results, ql);
+  const matches = all.filter(o => searchFields(o).includes(ql));
+  const rows = matches.map(o => searchRowHTML(o, pfx)).join("");
+  const note = matches.length
+    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · all stores`
+    : "No orders match — try a name, order number, address, or amount";
+  ordersEl.innerHTML = `<div class="search-note">${note}</div>${rows}`;
+  for (const row of ordersEl.querySelectorAll(".search-row")) {
+    if (searchExpanded[pfx].has(row.dataset.eid)) expandSearchRow(row, true);
+  }
+  highlightResults(ordersEl, ql);
+}
+
+function expandSearchRow(row, forceOpen) {
+  const pfx = row.dataset.pfx;
+  const eid = row.dataset.eid;
+  const detail = row.querySelector(".search-row-detail");
+  const open = forceOpen !== undefined ? forceOpen : !row.classList.contains("open");
+  row.classList.toggle("open", open);
+  if (open) {
+    const order = findOrder(pfx, eid);
+    if (order) detail.innerHTML = orderCard(order, pfx, false);
+    searchExpanded[pfx].add(eid);
+  } else {
+    detail.innerHTML = "";
+    searchExpanded[pfx].delete(eid);
+  }
 }
 
 function setupSearch(pfx) {
   const fab = $("fab-" + pfx), bar = $("searchbar-" + pfx), input = $("searchinput-" + pfx),
-        close = $("searchclose-" + pfx), results = $("searchresults-" + pfx);
+        close = $("searchclose-" + pfx), chips = $("chips-" + pfx), tabs = $("tabs-" + pfx);
   if (!fab) return;
   const closeSearch = () => {
     searchActive[pfx] = false;
     bar.hidden = true;
-    results.hidden = true;
     fab.style.display = "";
+    if (chips) chips.style.display = "";
+    if (tabs) tabs.style.display = pfx === "demaecan" ? "none" : "";
+    searchExpanded[pfx].clear();
+    renderAll(pfx);
   };
   fab.addEventListener("click", () => {
     searchActive[pfx] = true;
     bar.hidden = false;
-    results.hidden = false;
     fab.style.display = "none";
+    if (chips) chips.style.display = "none";
+    if (tabs) tabs.style.display = "none";
+    searchExpanded[pfx].clear();
     input.value = "";
     renderSearch(pfx, "");
     input.focus();
@@ -774,6 +826,18 @@ function setupSearch(pfx) {
   close.addEventListener("click", closeSearch);
   input.addEventListener("input", () => renderSearch(pfx, input.value));
   input.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
+}
+
+function setupSearchDelegation() {
+  document.addEventListener("click", (e) => {
+    const main = e.target.closest(".search-row-main");
+    if (main) {
+      const row = main.closest(".search-row");
+      if (row && searchActive[row.dataset.pfx]) {
+        expandSearchRow(row);
+      }
+    }
+  });
 }
 
 function setupTabs() {
@@ -1040,6 +1104,7 @@ loadOrders();
 setupTabs();
 setupSearch("ubereats");
 setupSearch("demaecan");
+setupSearchDelegation();
 setupPlatformTabs();
 setupMapModal();
 connectSSE();
