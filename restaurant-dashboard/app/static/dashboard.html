@@ -797,12 +797,17 @@ function renderSearchModal() {
     results.innerHTML = '<div class="empty">Start typing to search today\'s orders</div>';
     return;
   }
-  const all = [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])]
-    .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+  const all = [
+    ...filtered(ordersByPlatform[pfx], pfx),
+    ...filtered(historyByPlatform[pfx], pfx)
+  ].sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
   const matches = all.filter(o => searchFields(o).includes(ql));
   const rows = matches.map(o => searchRowHTML(o, pfx)).join("");
+  const scope = selectedStore[pfx]
+    ? (storeLookup[pfx] && storeLookup[pfx][selectedStore[pfx]]) || "selected store"
+    : "all stores";
   const note = matches.length
-    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · ${PLATFORMS[pfx]}`
+    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · ${scope}`
     : "No orders match — try a name, order number, address, or amount";
   results.innerHTML = `<div class="search-note">${note}</div>${rows || ""}`;
   highlightResults(results, ql);
@@ -826,9 +831,6 @@ function jumpToOrder(pfx, eid) {
   mobilePlatform = pfx;
   applyPlatformTabs();
   localStorage.setItem("mobile-platform", pfx);
-  selectedStore[pfx] = ""; // all stores so the order can't be filtered out (session only)
-  const sel = $("store-" + pfx);
-  if (sel) sel.value = "";
   const order = findOrder(pfx, eid);
   const done = !!order && ["COMPLETED", "DELIVERED", "CANCELLED"].includes(order.status);
   activeTab[pfx] = done ? "completed" : "active";
