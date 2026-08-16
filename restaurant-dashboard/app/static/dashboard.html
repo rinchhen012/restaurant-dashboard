@@ -43,6 +43,11 @@
   }
   .warn-banner code { background: rgba(0, 0, 0, .3); padding: 1px 5px; border-radius: 4px; }
   .warn-banner .btn { margin-left: auto; padding: 3px 10px; }
+  .date-strip {
+    background: #123a6b; color: #9ecbff; padding: 7px 16px; font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .date-strip .btn { padding: 3px 12px; font-size: 12.5px; }
   .cash-row, .cash-total {
     display: flex; align-items: center; gap: 12px; padding: 9px 12px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
@@ -340,6 +345,10 @@
 </header>
 
 <div class="warn-banner" id="session-warn" hidden></div>
+<div class="date-strip" id="date-strip" hidden>
+  <span id="date-strip-label"></span>
+  <button class="btn ghost" id="date-strip-today">Back to Today</button>
+</div>
 
 <div class="toasts" id="toasts"></div>
 
@@ -979,11 +988,20 @@ let dateOrders = { ubereats: [], demaecan: [] };
 function setupDateView() {
   $("date-picker").addEventListener("change", (e) => setDateView(e.target.value));
   $("date-today").addEventListener("click", () => { $("date-picker").value = ""; setDateView(""); });
+  $("date-strip-today").addEventListener("click", () => { $("date-picker").value = ""; setDateView(""); });
 }
 
 async function setDateView(dateStr) {
   viewDate = dateStr || null;
   $("date-today").style.display = viewDate ? "" : "none";
+  const strip = $("date-strip");
+  if (viewDate) {
+    const d = new Date(viewDate + "T00:00:00");
+    $("date-strip-label").textContent = `Viewing: ${d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })} — one day only`;
+    strip.hidden = false;
+  } else {
+    strip.hidden = true;
+  }
   if (!viewDate) {
     dateOrders = { ubereats: [], demaecan: [] };
     for (const pfx of Object.keys(PLATFORMS)) {
