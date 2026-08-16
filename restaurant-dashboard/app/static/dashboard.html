@@ -32,7 +32,6 @@
     cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
-  .cash-pill-amt { color: var(--demae); font-weight: 700; }
   .cash-row, .cash-total {
     display: flex; align-items: center; gap: 12px; padding: 9px 12px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
@@ -140,6 +139,7 @@
   .copy-btn:hover { color: var(--text); border-color: var(--accent); }
   .order .cust { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .order .total { font-size: 18px; font-weight: 800; margin-top: 6px; text-align: right; color: #9ecbff; font-variant-numeric: tabular-nums; }
+  .order .total.pay-cash-total { color: var(--danger); }
   .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 16px 0; }
   .dt-widget { padding: 0 16px 8px; display: flex; align-items: center; gap: 10px; }
   .dt-widget .current { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -578,7 +578,7 @@ function orderCard(order, platform, isNew) {
     ${store}
     <div class="items">${items || `<span class="empty">(items unavailable)</span>`}</div>
     ${platform === "demaecan" ? metaBlock(order) : ""}
-    <div class="total">${money(order.total)}</div>
+    <div class="total${(order.meta && order.meta.payment_cash) ? " pay-cash-total" : ""}">${money(order.total)}</div>
   </div>`;
 }
 
@@ -920,8 +920,8 @@ function cashData(scopeStore) {
 
 function updateCashPill() {
   const t = cashData(selectedStore.demaecan);
-  const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} <span class="cash-pill-amt">${money(v.total)}</span>`);
-  $("cash-pill-body").innerHTML = parts.length ? `💵 ${parts.join(" · ")}` : "💵 <span class=\"cash-pill-amt\">¥0</span>";
+  const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} ${money(v.total)}`);
+  $("cash-pill-body").textContent = parts.length ? `💵 ${parts.join(" · ")}` : "💵 ¥0";
 }
 
 function setupCashPill() {
