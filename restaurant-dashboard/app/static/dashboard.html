@@ -844,7 +844,10 @@ function highlightResults(container, ql) {
 }
 
 function findOrder(pfx, eid) {
-  return [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])].find(o => o.external_id === eid);
+  const pool = viewDate
+    ? (dateOrders[pfx] || [])
+    : [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])];
+  return pool.find(o => o.external_id === eid);
 }
 
 function searchRowHTML(o, pfx) {
@@ -866,17 +869,19 @@ function renderSearchModal() {
     results.innerHTML = '<div class="empty">Start typing to search today\'s orders</div>';
     return;
   }
-  const all = [
-    ...filtered(ordersByPlatform[pfx], pfx),
-    ...filtered(historyByPlatform[pfx], pfx)
-  ].sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+  const pool = viewDate
+    ? (dateOrders[pfx] || [])
+    : [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])];
+  const all = filtered(pool, pfx).slice()
+    .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
   const matches = all.filter(o => searchFields(o).includes(ql));
   const rows = matches.map(o => searchRowHTML(o, pfx)).join("");
   const scope = selectedStore[pfx]
     ? (storeLookup[pfx] && storeLookup[pfx][selectedStore[pfx]]) || "selected store"
     : "all stores";
+  const when = viewDate ? ` · ${fmtDateShort(viewDate)}` : "";
   const note = matches.length
-    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · ${scope}`
+    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · ${scope}${when}`
     : "No orders match — try a name, order number, address, or amount";
   results.innerHTML = `<div class="search-note">${note}</div>${rows || ""}`;
   highlightResults(results, ql);
