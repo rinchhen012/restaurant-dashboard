@@ -32,11 +32,11 @@
     cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
-  #date-picker {
+  .date-pick {
     background: var(--panel2); border: 1px solid var(--border); color: var(--text);
-    border-radius: 8px; padding: 5px 8px; font-size: 12.5px; color-scheme: dark;
+    border-radius: 8px; padding: 4px 8px; font-size: 12px; color-scheme: dark;
   }
-  .date-today { padding: 5px 10px; font-size: 12.5px; }
+  .date-pick:focus { outline: none; border-color: var(--accent); }
   .warn-banner {
     background: #3d2c0e; color: #fbbf24; padding: 8px 16px; font-size: 12.5px;
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -339,8 +339,6 @@
 <header>
   <h1>Order Dashboard</h1>
   <span class="sub">Uber Eats · Demae-Can</span>
-  <input type="date" id="date-picker" title="View a past day">
-  <button class="btn ghost date-today" id="date-today" style="display:none">Today</button>
   <button class="cash-pill" id="cash-pill" title="Cash payments today (Demae-Can)"><span id="cash-pill-body">💵 –</span></button>
 </header>
 
@@ -362,6 +360,7 @@
     <div class="panel-head">
       <div class="logo uber">U</div>
       <h2>Uber Eats</h2>
+      <input type="date" id="date-picker-ubereats" class="date-pick" title="View a past day">
       <select id="store-ubereats" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
     </div>
@@ -385,6 +384,7 @@
     <div class="panel-head">
       <div class="logo demae">D</div>
       <h2>Demae-Can</h2>
+      <input type="date" id="date-picker-demaecan" class="date-pick" title="View a past day">
       <select id="store-demaecan" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
     </div>
@@ -986,14 +986,25 @@ let viewDate = null;
 let dateOrders = { ubereats: [], demaecan: [] };
 
 function setupDateView() {
-  $("date-picker").addEventListener("change", (e) => setDateView(e.target.value));
-  $("date-today").addEventListener("click", () => { $("date-picker").value = ""; setDateView(""); });
-  $("date-strip-today").addEventListener("click", () => { $("date-picker").value = ""; setDateView(""); });
+  for (const pfx of Object.keys(PLATFORMS)) {
+    $(`date-picker-${pfx}`).addEventListener("change", (e) => {
+      setDateView(e.target.value || "");
+    });
+  }
+  $("date-strip-today").addEventListener("click", () => { syncDatePickers(""); setDateView(""); });
+}
+
+function syncDatePickers(val) {
+  const v = val !== undefined ? val : (viewDate || "");
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const el = $(`date-picker-${pfx}`);
+    if (el && el.value !== v) el.value = v;
+  }
 }
 
 async function setDateView(dateStr) {
   viewDate = dateStr || null;
-  $("date-today").style.display = viewDate ? "" : "none";
+  syncDatePickers(viewDate);
   const strip = $("date-strip");
   if (viewDate) {
     const d = new Date(viewDate + "T00:00:00");
