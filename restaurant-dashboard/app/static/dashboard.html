@@ -77,6 +77,8 @@
     animation: slidein .35s ease;
   }
   .order.new { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 4px 18px rgba(79,140,255,.25); }
+  .order.flash { animation: flashcard 2.5s ease; }
+  @keyframes flashcard { 0%, 60% { box-shadow: 0 0 0 2px var(--warn), 0 0 24px rgba(245,166,35,.55); } 100% { box-shadow: none; } }
   @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } }
   .order .top { display: flex; align-items: center; gap: 8px; }
   .order .oid { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
@@ -267,6 +269,33 @@
   .search-row-main .total { margin-left: auto; font-size: 15px; font-weight: 800; color: #9ecbff; font-variant-numeric: tabular-nums; }
   .search-row-detail { display: none; padding: 10px 12px; border-top: 1px dashed var(--border); }
   .search-row.open .search-row-detail { display: block; }
+  .search-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .6);
+    z-index: 200; align-items: center; justify-content: center; padding: 16px;
+  }
+  .search-modal.show { display: flex; }
+  .search-modal-box {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; width: min(560px, 94vw); overflow: hidden;
+    display: flex; flex-direction: column; max-height: 80vh;
+  }
+  .search-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; font-weight: 700; background: var(--panel2);
+  }
+  .search-modal-input { padding: 10px 14px; }
+  .search-modal-input input[type=search] {
+    width: 100%; padding: 10px 12px; font-size: 15px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+  }
+  .search-modal-input input[type=search]:focus { outline: none; border-color: var(--accent); }
+  .search-modal-results { overflow-y: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .search-row-store { font-size: 11px; color: var(--muted); padding: 2px 8px; border: 1px solid var(--border); border-radius: 20px; }
+  @media (max-width: 860px) {
+    .search-modal { padding: 0; }
+    .search-modal-box { width: 100vw; height: 100dvh; max-height: none; border: none; border-radius: 0; }
+    .search-modal-results { flex: 1; }
+  }
   @media (max-width: 860px) {
     .fab { right: 14px; bottom: 14px; }
     .search-bar { padding: 8px 14px; }
@@ -296,10 +325,6 @@
       <select id="store-ubereats" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
     </div>
-    <div class="search-bar" id="searchbar-ubereats" hidden>
-      <input type="search" id="searchinput-ubereats" placeholder="Search orders…" autocomplete="off">
-      <button class="btn ghost" id="searchclose-ubereats" title="Close">✕</button>
-    </div>
     <div class="stats">
       <div class="stat"><div class="label">Orders today</div><div class="value" id="count-ubereats">–</div></div>
       <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-ubereats">–</div></div>
@@ -322,10 +347,6 @@
       <h2>Demae-Can</h2>
       <select id="store-demaecan" class="store-select" title="Filter by store"></select>
       <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
-    </div>
-    <div class="search-bar" id="searchbar-demaecan" hidden>
-      <input type="search" id="searchinput-demaecan" placeholder="Search orders…" autocomplete="off">
-      <button class="btn ghost" id="searchclose-demaecan" title="Close">✕</button>
     </div>
     <div class="stats two">
       <div class="stat"><div class="label">Orders today</div><div class="value" id="count-demaecan">–</div></div>
@@ -350,6 +371,19 @@
 </div>
 
 <div class="footer">Polling every ~12s · sessions stored encrypted · dashboard local-only</div>
+
+<div class="search-modal" id="search-modal">
+  <div class="search-modal-box">
+    <div class="search-modal-head">
+      <span id="search-modal-title">Search orders</span>
+      <button class="btn ghost" id="search-modal-close" title="Close">✕</button>
+    </div>
+    <div class="search-modal-input">
+      <input type="search" id="search-modal-input" placeholder="Name, order number, address, amount…" autocomplete="off">
+    </div>
+    <div class="search-modal-results" id="search-modal-results"><div class="empty">Start typing to search today's orders</div></div>
+  </div>
+</div>
 
 <div class="map-modal" id="map-modal">
   <div class="map-modal-box">
@@ -684,7 +718,7 @@ function copyText(text) {
   return Promise.resolve(legacyCopy(text));
 }
 
-let searchActive = { ubereats: false, demaecan: false };
+let currentSearchPfx = "ubereats";
 
 function searchFields(o) {
   const m = o.meta || {};
@@ -739,103 +773,105 @@ function highlightResults(container, ql) {
   }
 }
 
-let searchExpanded = { ubereats: new Set(), demaecan: new Set() };
-
 function findOrder(pfx, eid) {
   return [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])].find(o => o.external_id === eid);
 }
 
 function searchRowHTML(o, pfx) {
   const code = o.order_code || o.external_id || "";
+  const store = (o.store_uuid && storeLookup[pfx] && storeLookup[pfx][o.store_uuid])
+    ? `<span class="search-row-store">${escapeHtml(storeLookup[pfx][o.store_uuid])}</span>` : "";
   return `<div class="search-row" data-eid="${escapeHtml(o.external_id)}" data-pfx="${pfx}">
     <div class="search-row-main">
       <span class="time">${fmtTime(o.placed_at || o.first_seen_at)}</span>
       <span class="oid">${escapeHtml(code)}</span>
       ${customerName(o)}
+      ${store}
       <span class="total">${money(o.total)}</span>
     </div>
-    <div class="search-row-detail"></div>
   </div>`;
 }
 
-function renderSearch(pfx, q) {
-  const ql = q.trim().toLowerCase();
-  const ordersEl = $("orders-" + pfx);
-  const histEl = $("history-" + pfx);
+function renderSearchModal() {
+  const pfx = currentSearchPfx;
+  const input = $("search-modal-input");
+  const results = $("search-modal-results");
+  const ql = input.value.trim().toLowerCase();
   if (!ql) {
-    // restore the normal list view exactly as it was
-    histEl.style.display = activeTab[pfx] === "completed" ? "" : "none";
-    renderAll(pfx);
+    results.innerHTML = '<div class="empty">Start typing to search today\'s orders</div>';
     return;
   }
-  histEl.style.display = "none";
   const all = [...(ordersByPlatform[pfx] || []), ...(historyByPlatform[pfx] || [])]
     .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
   const matches = all.filter(o => searchFields(o).includes(ql));
   const rows = matches.map(o => searchRowHTML(o, pfx)).join("");
   const note = matches.length
-    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · all stores`
+    ? `${matches.length} match${matches.length === 1 ? "" : "es"} · ${PLATFORMS[pfx]}`
     : "No orders match — try a name, order number, address, or amount";
-  ordersEl.innerHTML = `<div class="search-note">${note}</div>${rows}`;
-  for (const row of ordersEl.querySelectorAll(".search-row")) {
-    if (searchExpanded[pfx].has(row.dataset.eid)) expandSearchRow(row, true);
-  }
-  highlightResults(ordersEl, ql);
+  results.innerHTML = `<div class="search-note">${note}</div>${rows || ""}`;
+  highlightResults(results, ql);
 }
 
-function expandSearchRow(row, forceOpen) {
-  const pfx = row.dataset.pfx;
-  const eid = row.dataset.eid;
-  const detail = row.querySelector(".search-row-detail");
-  const open = forceOpen !== undefined ? forceOpen : !row.classList.contains("open");
-  row.classList.toggle("open", open);
-  if (open) {
-    const order = findOrder(pfx, eid);
-    if (order) detail.innerHTML = orderCard(order, pfx, false);
-    searchExpanded[pfx].add(eid);
-  } else {
-    detail.innerHTML = "";
-    searchExpanded[pfx].delete(eid);
-  }
+function openSearch(pfx) {
+  currentSearchPfx = pfx;
+  $("search-modal-title").textContent = `Search ${PLATFORMS[pfx]} orders`;
+  $("search-modal-input").value = "";
+  $("search-modal-results").innerHTML = '<div class="empty">Start typing to search today\'s orders</div>';
+  $("search-modal").classList.add("show");
+  $("search-modal-input").focus();
 }
 
-function setupSearch(pfx) {
-  const fab = $("fab-" + pfx), bar = $("searchbar-" + pfx), input = $("searchinput-" + pfx),
-        close = $("searchclose-" + pfx), chips = $("chips-" + pfx), tabs = $("tabs-" + pfx);
-  if (!fab) return;
-  const closeSearch = () => {
-    searchActive[pfx] = false;
-    bar.hidden = true;
-    fab.style.display = "";
-    if (chips) chips.style.display = "";
-    if (tabs) tabs.style.display = pfx === "demaecan" ? "none" : "";
-    searchExpanded[pfx].clear();
-    renderAll(pfx);
-  };
-  fab.addEventListener("click", () => {
-    searchActive[pfx] = true;
-    bar.hidden = false;
-    fab.style.display = "none";
-    if (chips) chips.style.display = "none";
-    if (tabs) tabs.style.display = "none";
-    searchExpanded[pfx].clear();
-    input.value = "";
-    renderSearch(pfx, "");
-    input.focus();
+function closeSearch() {
+  $("search-modal").classList.remove("show");
+}
+
+function jumpToOrder(pfx, eid) {
+  closeSearch();
+  mobilePlatform = pfx;
+  applyPlatformTabs();
+  localStorage.setItem("mobile-platform", pfx);
+  selectedStore[pfx] = ""; // all stores so the order can't be filtered out (session only)
+  const sel = $("store-" + pfx);
+  if (sel) sel.value = "";
+  const order = findOrder(pfx, eid);
+  const done = !!order && ["COMPLETED", "DELIVERED", "CANCELLED"].includes(order.status);
+  activeTab[pfx] = done ? "completed" : "active";
+  localStorage.setItem("tab-" + pfx, activeTab[pfx]);
+  applyTab(pfx);
+  renderAll(pfx);
+  setTimeout(() => {
+    const container = $((done ? "history-" : "orders-") + pfx);
+    const card = container.querySelector(`.order[data-eid="${eid}"]`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("flash");
+      setTimeout(() => card.classList.remove("flash"), 2500);
+    }
+  }, 100);
+}
+
+function setupSearch() {
+  const modal = $("search-modal");
+  document.querySelectorAll(".fab").forEach(fab => {
+    fab.addEventListener("click", () => openSearch(fab.id.replace("fab-", "")));
   });
-  close.addEventListener("click", closeSearch);
-  input.addEventListener("input", () => renderSearch(pfx, input.value));
-  input.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearch(); });
-}
-
-function setupSearchDelegation() {
-  document.addEventListener("click", (e) => {
+  $("search-modal-close").addEventListener("click", closeSearch);
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeSearch();
+  });
+  $("search-modal-input").addEventListener("input", renderSearchModal);
+  $("search-modal-input").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSearch();
+    if (e.key === "Enter") {
+      const first = $("search-modal-results").querySelector(".search-row");
+      if (first) jumpToOrder(first.dataset.pfx, first.dataset.eid);
+    }
+  });
+  modal.addEventListener("click", (e) => {
     const main = e.target.closest(".search-row-main");
     if (main) {
       const row = main.closest(".search-row");
-      if (row && searchActive[row.dataset.pfx]) {
-        expandSearchRow(row);
-      }
+      if (row) jumpToOrder(row.dataset.pfx, row.dataset.eid);
     }
   });
 }
@@ -1034,7 +1070,6 @@ async function loadOrders() {
     }
     for (const pfx of Object.keys(PLATFORMS)) {
       renderAll(pfx);
-      if (searchActive[pfx] && !$("searchbar-" + pfx).hidden) renderSearch(pfx, $("searchinput-" + pfx).value);
     }
   } catch (e) { setConn(false, "api error"); }
 }
@@ -1102,9 +1137,7 @@ $("dt-set").addEventListener("click", async () => {
 loadState();
 loadOrders();
 setupTabs();
-setupSearch("ubereats");
-setupSearch("demaecan");
-setupSearchDelegation();
+setupSearch();
 setupPlatformTabs();
 setupMapModal();
 connectSSE();
