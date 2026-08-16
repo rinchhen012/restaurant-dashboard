@@ -1,0 +1,12 @@
+services:
+  dashboard:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: restaurant-dashboard:latest
+    container_name: restaurant-dashboard
+    ports:
+      - "8787:8787"
+    volumes:
+      - ../data:/app/data
+    restart: unless-stopped

@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restaurant Order Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --panel2: #1e2230; --border: #2a3040;
+    --text: #e8eaf0; --muted: #8b93a7; --accent: #4f8cff;
+    --uber: #06c167; --demae: #ff4d3d; --warn: #f5a623; --danger: #e5484d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #151824, #11141c);
+    position: sticky; top: 0; z-index: 20;
+  }
+  header h1 { font-size: 19px; font-weight: 700; letter-spacing: .3px; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  .conn { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); }
+  .dot.ok { background: var(--uber); }
+  .dot.bad { background: var(--danger); }
+  .grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    padding: 16px 24px 24px; max-width: 1600px; margin: 0 auto;
+  }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .panel-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--panel2);
+  }
+  .logo { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; color: #fff; }
+  .logo.uber { background: var(--uber); }
+  .logo.demae { background: var(--demae); }
+  .panel-head h2 { font-size: 15px; }
+  .auth { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .auth-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); display: inline-block; flex: none; }
+  .auth-dot.ok { background: var(--uber); box-shadow: 0 0 6px var(--uber); }
+  .auth-dot.needed { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .auth-dot.error { background: var(--danger); }
+  .active-badge { font-size: 12.5px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 8px 16px 8px; }
+  .stats.two { grid-template-columns: repeat(2, 1fr); }
+  .stat { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+  .stat .value { font-size: 22px; font-weight: 700; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .stat .value.small { font-size: 16px; }
+  .status-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; }
+  .chip { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); }
+  .chip-big {
+    display: inline-block; font-size: 13px; font-weight: 700;
+    padding: 6px 16px; border-radius: 20px; color: #fff;
+  }
+  .chip-big.NEW { background: var(--accent); }
+  .chip-big.ACCEPTED { background: var(--accent); }
+  .chip-big.PREPARING, .chip-big.CHANGED { background: var(--warn); }
+  .chip-big.READY, .chip-big.PICKED_UP { background: #7ab7ff; }
+  .chip-big.COMPLETED, .chip-big.DELIVERED { background: var(--uber); }
+  .chip-big.CANCELLED, .chip-big.REJECTED { background: var(--danger); }
+  .chip-big.UNKNOWN { background: var(--muted); }
+  .section-title {
+    font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px;
+    padding: 0 16px 4px;
+  }
+  .orders { max-height: 52vh; overflow-y: auto; padding: 0 16px 8px; display: flex; flex-direction: column; gap: 8px; }
+  .order {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+    animation: slidein .35s ease;
+  }
+  .order.new { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 4px 18px rgba(79,140,255,.25); }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-6px); } }
+  .order .top { display: flex; align-items: center; gap: 8px; }
+  .order .oid { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .cust-top { font-size: 13px; font-weight: 600; }
+  .cust-en { color: var(--muted); font-weight: 400; }
+  .order .time { font-size: 14px; font-weight: 700; color: var(--warn); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .badge { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .4px; }
+  .badge.NEW { background: #123a6b; color: #7ab7ff; }
+  .badge.ACCEPTED { background: #0e3b26; color: #4ade80; }
+  .badge.PREPARING { background: #3d2c0e; color: #fbbf24; }
+  .badge.READY, .badge.PICKED_UP { background: #123a6b; color: #7ab7ff; }
+  .badge.DELIVERED, .badge.COMPLETED { background: #0e3b26; color: #4ade80; }
+  .badge.CANCELLED, .badge.REJECTED { background: #3d1316; color: #f87171; }
+  .badge.UNKNOWN { background: #232a3d; color: var(--muted); }
+  .badge.CHANGED { background: #3d2c0e; color: #fbbf24; }
+  .order .items { font-size: 13px; margin-top: 6px; color: var(--text); }
+  .order .items .qty { color: var(--accent); font-weight: 600; }
+  .item-row { display: flex; align-items: center; gap: 6px; border-radius: 6px; }
+  .item-row.clickable { cursor: pointer; }
+  .item-row.clickable:hover { background: var(--panel2); }
+  .opt-toggle {
+    flex: none; width: 18px; height: 18px; padding: 0; line-height: 1;
+    font-size: 11px; color: var(--accent); cursor: pointer;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 4px;
+    transition: transform .15s ease;
+  }
+  .opt-toggle.open { transform: rotate(180deg); }
+  .opt-list { margin: 3px 0 3px 24px; padding-left: 10px; border-left: 2px solid var(--border); color: var(--muted); font-size: 12.5px; }
+  .opt-list .qty { color: var(--muted); }
+  .order-meta { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); font-size: 12px; }
+  .meta-remark {
+    background: #3d2c0e; color: #fbbf24; border-radius: 6px;
+    padding: 5px 8px; margin-bottom: 6px; font-weight: 600;
+  }
+  .meta-kv { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
+  .meta-kv .pay-cash { color: var(--danger); font-weight: 800; }
+  .meta-kv .dist { color: var(--uber); font-weight: 700; }
+  .meta-kv .delivery { color: var(--warn); font-weight: 700; }
+  .meta-addr { color: var(--accent); font-weight: 600; margin-top: 4px; }
+  .trans-en { color: var(--muted); margin: 2px 0 0 18px; font-style: italic; }
+  .copy-btn {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--muted);
+    border-radius: 4px; cursor: pointer; padding: 0 6px; font-size: 11px; margin-left: 4px;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+  .order .cust { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .order .total { font-size: 18px; font-weight: 800; margin-top: 6px; text-align: right; color: #9ecbff; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 16px 0; }
+  .dt-widget { padding: 0 16px 8px; display: flex; align-items: center; gap: 10px; }
+  .dt-widget .current { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dt-widget .current .unit { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .dt-widget input[type=number] {
+    width: 90px; padding: 8px 10px; font-size: 15px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+  }
+  .btn {
+    padding: 8px 16px; font-size: 13px; font-weight: 600; border: none; border-radius: 8px;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.ghost { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .store-select {
+    margin-left: 12px; padding: 5px 8px; font-size: 12.5px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    max-width: 190px;
+  }
+  .tabs { display: flex; gap: 6px; padding: 0 16px 12px; }
+  .tab {
+    flex: 1; padding: 7px 0; font-size: 12.5px; font-weight: 600;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--muted); cursor: pointer;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .tab-count { opacity: .75; font-variant-numeric: tabular-nums; }
+  .toasts { position: fixed; top: 70px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 100; }
+  .toast {
+    background: var(--panel2); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    border-radius: 10px; padding: 12px 16px; min-width: 260px; max-width: 380px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: slidein .3s ease;
+  }
+  .toast.uber { border-left-color: var(--uber); }
+  .toast.demae { border-left-color: var(--demae); }
+  .toast .t { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  .toast-close {
+    margin-left: auto; background: none; border: none; color: var(--muted);
+    font-size: 13px; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+  }
+  .toast-close:hover { color: var(--text); background: var(--panel); }
+  .toast .d { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
+  .map-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, .6);
+    z-index: 200; align-items: center; justify-content: center; padding: 16px;
+  }
+  .map-modal.show { display: flex; }
+  .map-modal-box {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 14px; width: min(680px, 94vw); overflow: hidden;
+  }
+  .map-modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; font-weight: 700;
+  }
+  .map-modal-head .btn { padding: 4px 10px; }
+  #map-container { height: 60vh; min-height: 320px; z-index: 1; }
+  .dist.clickable { cursor: pointer; text-decoration: underline dotted; }
+  @media (max-width: 860px) {
+    .map-modal { padding: 0; }
+    .map-modal-box { width: 100vw; height: 100dvh; border: none; border-radius: 0; }
+    .map-modal-head { padding: 12px 14px; }
+    .map-modal-head .btn { padding: 8px 12px; font-size: 16px; }
+    #map-container { height: calc(100dvh - 56px); }
+    @supports not (height: 100dvh) {
+      .map-modal-box { height: 100vh; }
+      #map-container { height: calc(100vh - 56px); }
+    }
+  }
+  .platform-tabs { display: none; }
+  @media (max-width: 860px) {
+    header { padding: 8px 16px; gap: 10px; }
+    header h1 { font-size: 16px; }
+    header .sub { display: none; }
+    .platform-tabs {
+      display: flex; gap: 8px; padding: 8px 16px 8px;
+      position: sticky; top: 35px; z-index: 15; background: var(--bg);
+    }
+    .ptab {
+      flex: 1; padding: 10px 0; font-size: 13.5px; font-weight: 700;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--panel2); color: var(--muted); cursor: pointer;
+    }
+    .ptab[data-platform="ubereats"].active {
+      background: var(--uber); border-color: var(--uber); color: #fff;
+    }
+    .ptab[data-platform="demaecan"].active {
+      background: var(--demae); border-color: var(--demae); color: #fff;
+    }
+    .grid { grid-template-columns: 1fr; padding: 0 16px 20px; gap: 12px; }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .panel-head { padding: 12px 14px; flex-wrap: wrap; row-gap: 8px; }
+    .panel-head h2 { font-size: 15px; }
+    .store-select { order: 3; flex: 1 1 100%; max-width: none; margin-left: 0; }
+    .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 8px 14px 8px; }
+    .stats.two { grid-template-columns: repeat(2, 1fr); }
+    .stat { padding: 8px 10px; }
+    .stat .label { font-size: 10px; }
+    .stat .value { font-size: 19px; }
+    .stat .value.small { font-size: 14px; }
+    .status-chips { padding: 0 14px 8px; }
+    .tabs { padding: 0 14px 8px; }
+    .orders { max-height: none; padding: 0 14px 8px; gap: 8px; }
+    .order { padding: 10px 12px; }
+    .section-title { padding: 0 14px 4px; }
+    .dt-widget { padding: 0 14px 8px; gap: 8px; flex-wrap: wrap; }
+    .dt-widget input[type=number] { flex: 1 1 100px; }
+    .dt-badge { padding: 0 14px 8px; }
+    .reauth { padding: 0 14px 8px; }
+    .toasts { top: 118px; right: 12px; left: 12px; }
+    .toast { max-width: none; }
+    .footer { padding: 16px 16px 24px; }
+  }
+  .reauth { display: none; margin-top: 6px; font-size: 12.5px; color: #fbbf24; padding: 0 16px 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Order Dashboard</h1>
+  <span class="sub">Uber Eats · Demae-Can</span>
+  <div class="conn"><span class="dot" id="connDot"></span><span id="connText">connecting…</span></div>
+</header>
+
+<div class="toasts" id="toasts"></div>
+
+<div class="platform-tabs" id="platform-tabs">
+  <button class="ptab active" data-platform="ubereats">Uber Eats</button>
+  <button class="ptab" data-platform="demaecan">Demae-Can</button>
+</div>
+
+<div class="grid">
+  <div class="panel" id="panel-ubereats">
+    <div class="panel-head">
+      <div class="logo uber">U</div>
+      <h2>Uber Eats</h2>
+      <select id="store-ubereats" class="store-select" title="Filter by store"></select>
+      <span class="auth"><span class="auth-dot unknown" id="authdot-ubereats"></span></span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label">Orders today</div><div class="value" id="count-ubereats">–</div></div>
+      <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-ubereats">–</div></div>
+      <div class="stat"><div class="label">Active now</div><div class="value" id="active-ubereats">–</div></div>
+    </div>
+    <div class="status-chips" id="chips-ubereats"></div>
+    <div class="tabs" id="tabs-ubereats">
+      <button class="tab active" data-view="active">Active <span class="tab-count" id="tabcount-ubereats-active"></span></button>
+      <button class="tab" data-view="completed">Completed <span class="tab-count" id="tabcount-ubereats-completed"></span></button>
+    </div>
+    <div class="orders" id="orders-ubereats"><div class="empty">No orders yet</div></div>
+    <div class="orders" id="history-ubereats" style="display:none"><div class="empty">No completed orders</div></div>
+    <div class="reauth" id="reauth-ubereats">Session expired — run <code>python -m app.capture ubereats</code> again to re-login.</div>
+  </div>
+
+  <div class="panel" id="panel-demaecan">
+    <div class="panel-head">
+      <div class="logo demae">D</div>
+      <h2>Demae-Can</h2>
+      <select id="store-demaecan" class="store-select" title="Filter by store"></select>
+      <span class="auth"><span class="auth-dot unknown" id="authdot-demaecan"></span></span>
+    </div>
+    <div class="stats two">
+      <div class="stat"><div class="label">Orders today</div><div class="value" id="count-demaecan">–</div></div>
+      <div class="stat"><div class="label">Revenue today</div><div class="value small" id="revenue-demaecan">–</div></div>
+    </div>
+    <div class="section-title">Delivery time (waiting time)</div>
+    <div class="dt-widget">
+      <div class="current"><span id="dt-value">–</span> <span class="unit">min</span></div>
+      <input type="number" id="dt-input" min="5" max="240" placeholder="Set min">
+      <button class="btn" id="dt-set">Set</button>
+      <span class="unit" id="dt-status"></span>
+    </div>
+    <div class="tabs" id="tabs-demaecan">
+      <button class="tab active" data-view="active">Active <span class="tab-count" id="tabcount-demaecan-active"></span></button>
+      <button class="tab" data-view="completed">Completed <span class="tab-count" id="tabcount-demaecan-completed"></span></button>
+    </div>
+    <div class="orders" id="orders-demaecan"><div class="empty">No orders yet</div></div>
+    <div class="orders" id="history-demaecan" style="display:none"><div class="empty">No completed orders</div></div>
+    <div class="reauth" id="reauth-demaecan">Session expired — run <code>python -m app.capture demaecan</code> again to re-login.</div>
+  </div>
+</div>
+
+<div class="footer">Polling every ~12s · sessions stored encrypted · dashboard local-only</div>
+
+<div class="map-modal" id="map-modal">
+  <div class="map-modal-box">
+    <div class="map-modal-head"><span>Delivery area map</span><button class="btn ghost" id="map-close">✕</button></div>
+    <div id="map-container"></div>
+  </div>
+</div>
+
+<script>
+const PLATFORMS = { ubereats: "Uber Eats", demaecan: "Demae-Can" };
+let audioCtx = null;
+let lastOrderIds = new Set();
+let ordersByPlatform = { ubereats: [], demaecan: [] };
+let historyByPlatform = { ubereats: [], demaecan: [] };
+let storeLookup = { ubereats: {}, demaecan: {} };
+const DEFAULT_STORE_LABEL = "Narimasu Indian";
+let selectedStore = {
+  ubereats: localStorage.getItem("store-ubereats") || "",
+  demaecan: localStorage.getItem("store-demaecan") || ""
+};
+let activeTab = {
+  ubereats: localStorage.getItem("tab-ubereats") || "active",
+  demaecan: localStorage.getItem("tab-demaecan") || "active"
+};
+let cardMetas = {};
+let mobilePlatform = localStorage.getItem("mobile-platform") || "ubereats";
+let currentDtAccount = "";
+
+function setupPlatformTabs() {
+  const bar = $("platform-tabs");
+  if (!bar) return;
+  bar.querySelectorAll(".ptab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      mobilePlatform = btn.dataset.platform;
+      localStorage.setItem("mobile-platform", mobilePlatform);
+      applyPlatformTabs();
+    });
+  });
+  applyPlatformTabs();
+}
+
+function applyPlatformTabs() {
+  document.querySelectorAll(".ptab").forEach(b => b.classList.toggle("active", b.dataset.platform === mobilePlatform));
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const panel = $("panel-" + pfx);
+    if (panel) panel.classList.toggle("active", pfx === mobilePlatform);
+  }
+}
+
+function demaeStoreKey(data) {
+  const sel = selectedStore.demaecan;
+  if (sel && data.delivery_time && data.delivery_time[sel]) return sel;
+  if (data.delivery_time) {
+    const first = Object.keys(data.delivery_time)[0];
+    if (first) return first;
+  }
+  return "";
+}
+
+const $ = id => document.getElementById(id);
+
+function beep() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.setValueAtTime(.25, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + .7);
+    o.start(); o.stop(audioCtx.currentTime + .7);
+    setTimeout(() => { o.frequency.value = 1174; o.start(audioCtx.currentTime + .2); o.stop(audioCtx.currentTime + .9); }, 200);
+  } catch (e) {}
+}
+
+function toast(platform, order) {
+  const t = document.createElement("div");
+  t.className = `toast ${platform}`;
+  const items = (order.items || []).slice(0, 3).map(i => `${i.quantity || ""}× ${i.title}`).join(", ") || "…";
+  const store = (order.store_uuid && storeLookup[platform] && storeLookup[platform][order.store_uuid])
+    ? storeLookup[platform][order.store_uuid]
+    : (order.store_name || "");
+  const storeLine = store ? ` · ${store}` : "";
+  const title = platform === "demaecan"
+    ? `${PLATFORMS[platform]} Orders${storeLine}`
+    : `New ${PLATFORMS[platform]} order${storeLine}`;
+  t.innerHTML = `<div class="t">${title}<button class="toast-close" title="Dismiss">✕</button></div><div class="d">${items}</div>`;
+  t.querySelector(".toast-close").addEventListener("click", () => t.remove());
+  $("toasts").appendChild(t);
+  setTimeout(() => t.remove(), 9000);
+}
+
+function money(v) { return v == null ? "–" : `¥${Number(v).toLocaleString(undefined, {maximumFractionDigits: 0})}`; }
+
+function fmtTime(ts) {
+  if (!ts) return "";
+  const d = new Date(ts.replace(" ", "T"));
+  if (isNaN(d)) return ts;
+  return d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+}
+
+function badge(order) {
+  const st = order.status || "UNKNOWN";
+  const cls = st in {NEW:1,ACCEPTED:1,PREPARING:1,READY:1,PICKED_UP:1,DELIVERED:1,COMPLETED:1,CANCELLED:1,REJECTED:1,CHANGED:1,UNKNOWN:1} ? st : "UNKNOWN";
+  return `<span class="badge ${cls}">${order.status_raw || st}</span>`;
+}
+
+function itemRow(i) {
+  const opts = (i.options || []).filter(o => o && o.title);
+  const optList = opts.length
+    ? `<div class="opt-list" hidden>${opts.map(o =>
+        `<div><span class="qty">${o.quantity || 1}×</span> ${escapeHtml(o.title)}</div>`).join("")}</div>`
+    : "";
+  const clickable = opts.length ? " clickable" : "";
+  const arrow = opts.length ? `<button class="opt-toggle" title="Show options">▾</button>` : "";
+  return `<div class="item-row${clickable}"><span class="qty">${i.quantity || 1}×</span> ${escapeHtml(i.title)}${arrow}</div>${optList}`;
+}
+
+function customerName(order) {
+  const name = order.customer || (order.meta && order.meta.customer) || "";
+  if (!name) return "";
+  const en = (order.meta && order.meta.customer_en) || "";
+  const hasJa = /[\u3040-\u30ff\u3400-\u9fff]/.test(name);
+  const display = hasJa && en
+    ? `${escapeHtml(name)} <span class="cust-en">(${escapeHtml(en)})</span>`
+    : escapeHtml(name);
+  return `<span class="cust-top">${display}</span>`;
+}
+
+function metaBlock(order) {
+  const m = order.meta;
+  if (!m || !Object.keys(m).length) return "";
+  const rows = [];
+  if (m.remarks) {
+    const en = m.remarks_en ? `<div class="trans-en">${escapeHtml(m.remarks_en)}</div>` : "";
+    rows.push(`<div class="meta-remark">備考: ${escapeHtml(m.remarks)}${en}</div>`);
+  }
+  const kv = [];
+  if (m.delivery_time) kv.push(`<span class="delivery">Delivery ${fmtTime(m.delivery_time)}</span>`);
+  if (m.wait_time != null) kv.push(`<span>Wait ${m.wait_time}min</span>`);
+  if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${escapeHtml(m.payment)}</span>`);
+  if (m.past_orders != null) kv.push(`<span>Orders: ${m.past_orders}</span>`);
+  if (m.phone) kv.push(`<span>📞 ${escapeHtml(m.phone)} <button class="copy-btn" data-copy="${escapeHtml(m.phone)}" title="Copy">⧉</button></span>`);
+  if (m.distance_km != null) {
+    const mapable = m.cust_lat != null && m.store_lat != null;
+    kv.push(`<span class="dist${mapable ? " clickable" : ""}" data-eid="${escapeHtml(order.external_id)}" title="${mapable ? "Show map" : ""}">🚲 ${m.distance_km} km</span>`);
+  }
+  if (kv.length) rows.push(`<div class="meta-kv">${kv.join("")}</div>`);
+  if (m.address) {
+    const en = m.address_en ? `<div class="trans-en">${escapeHtml(m.address_en)}</div>` : "";
+    rows.push(`<div class="meta-addr">📍 ${escapeHtml(m.address)} <button class="copy-btn" data-copy="${escapeHtml(m.address)}" title="Copy">⧉</button>${en}</div>`);
+  }
+  return `<div class="order-meta">${rows.join("")}</div>`;
+}
+
+function orderCard(order, platform, isNew) {
+  const items = (order.items || []).map(itemRow).join("");
+  if (order.meta) cardMetas[order.external_id] = order.meta;
+  const store = (order.store_uuid && storeLookup[platform][order.store_uuid])
+    ? `<div class="cust">Store: ${escapeHtml(storeLookup[platform][order.store_uuid])}</div>` : "";
+  return `<div class="order ${isNew ? "new" : ""}">
+    <div class="top">${platform === "demaecan" ? "" : badge(order)}
+      <span class="oid" title="${escapeHtml(order.external_id || "")}">${escapeHtml(order.order_code || order.external_id || "")}</span>
+      ${customerName(order)}
+      <span class="time">${fmtTime(order.placed_at || order.first_seen_at)}</span>
+    </div>
+    ${store}
+    <div class="items">${items || `<span class="empty">(items unavailable)</span>`}</div>
+    ${platform === "demaecan" ? metaBlock(order) : ""}
+    <div class="total">${money(order.total)}</div>
+  </div>`;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+function filtered(list, platform) {
+  const sel = selectedStore[platform];
+  if (!sel) return list || [];
+  if (sel === "__unknown__") return (list || []).filter(o => !o.store_uuid);
+  return (list || []).filter(o => o.store_uuid === sel);
+}
+
+function orderSig(o) {
+  return (o.external_id || "") + "|" + (o.status || "") + "|" + (o.total ?? "") + "|" + JSON.stringify(o.items || []);
+}
+
+function buildCardNode(o, platform) {
+  const wrap = document.createElement("div");
+  wrap.innerHTML = orderCard(o, platform, false);
+  const node = wrap.firstElementChild;
+  node.dataset.eid = o.external_id;
+  node.dataset.sig = orderSig(o);
+  return node;
+}
+
+function reconcileList(container, orders, platform) {
+  const emptyEl = container.querySelector(":scope > .empty");
+  if (!orders.length) {
+    if (!emptyEl) {
+      container.innerHTML = `<div class="empty">${container.id.startsWith("history") ? "No completed orders" : "No orders yet"}</div>`;
+    }
+    return;
+  }
+  if (emptyEl) emptyEl.remove();
+  const byEid = new Map();
+  for (const card of container.querySelectorAll(":scope > .order")) {
+    byEid.set(card.dataset.eid, card);
+  }
+  const seen = new Set();
+  let anchor = container.firstChild;
+  for (const o of orders) {
+    const eid = o.external_id;
+    seen.add(eid);
+    let node = byEid.get(eid);
+    if (!node) {
+      node = buildCardNode(o, platform);
+      byEid.set(eid, node);
+      container.insertBefore(node, anchor);
+      anchor = node.nextSibling;
+    } else if (node.dataset.sig !== orderSig(o)) {
+      const fresh = buildCardNode(o, platform);
+      node.replaceWith(fresh);
+      node = fresh;
+      byEid.set(eid, fresh);
+      anchor = fresh.nextSibling;
+    } else {
+      if (node !== anchor) container.insertBefore(node, anchor);
+      anchor = node.nextSibling;
+    }
+    const isNew = !!o.first_seen_at && Date.now() - new Date(o.first_seen_at).getTime() < 30000;
+    if (node.classList.contains("new") !== isNew) node.classList.toggle("new", isNew);
+  }
+  for (const [eid, card] of byEid) {
+    if (!seen.has(eid)) card.remove();
+  }
+}
+
+function renderOrders(platform) {
+  const el = $("orders-" + platform);
+  if (!el) return;
+  reconcileList(el, filtered(ordersByPlatform[platform], platform), platform);
+}
+
+function renderHistory(platform) {
+  const el = $("history-" + platform);
+  if (!el) return;
+  reconcileList(el, filtered(historyByPlatform[platform], platform), platform);
+}
+
+const lastChips = {};
+function renderChips(platform) {
+  const visible = filtered([...(ordersByPlatform[platform] || []), ...(historyByPlatform[platform] || [])], platform);
+  if (platform === "demaecan") return;
+  const counts = {};
+  for (const o of visible) {
+    const s = o.status || "UNKNOWN";
+    if (s === "READY" || s === "COMPLETED") continue; // covered by the Active/Completed tabs
+    counts[s] = (counts[s] || 0) + 1;
+  }
+  const html = Object.entries(counts)
+    .map(([k, v]) => `<span class="chip-big ${k}">${k}: ${v}</span>`).join("");
+  if (lastChips[platform] === html) return;
+  lastChips[platform] = html;
+  $("chips-" + platform).innerHTML = html;
+}
+
+function renderAll(platform) {
+  renderOrders(platform);
+  renderHistory(platform);
+  renderChips(platform);
+  updateTabCounts(platform);
+}
+
+function setupStoreSelect(data) {
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const sel = $("store-" + pfx);
+    if (!sel || sel.options.length) continue;
+    storeLookup[pfx] = {};
+    const stores = data.platforms[pfx].stores || [];
+    let opts = `<option value="">All stores</option>`;
+    for (const s of stores) {
+      storeLookup[pfx][s.uuid] = s.label || s.name;
+      opts += `<option value="${s.uuid}">${escapeHtml(s.label || s.name)}</option>`;
+    }
+    sel.innerHTML = opts;
+    if (!selectedStore[pfx] || !storeLookup[pfx][selectedStore[pfx]]) {
+      const fallback = stores.find(s => (s.label || "") === DEFAULT_STORE_LABEL);
+      selectedStore[pfx] = fallback ? fallback.uuid : "";
+    }
+    sel.value = selectedStore[pfx];
+    sel.addEventListener("change", () => {
+      selectedStore[pfx] = sel.value;
+      localStorage.setItem("store-" + pfx, selectedStore[pfx]);
+      renderAll(pfx);
+      if (pfx === "demaecan" && lastState) renderState(lastState);
+    });
+  }
+}
+
+function applyTab(pfx) {
+  const view = activeTab[pfx];
+  const live = $("orders-" + pfx);
+  const hist = $("history-" + pfx);
+  if (live) live.style.display = view === "active" ? "" : "none";
+  if (hist) hist.style.display = view === "completed" ? "" : "none";
+  const tabs = $("tabs-" + pfx);
+  if (tabs) tabs.querySelectorAll(".tab").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+}
+
+function legacyCopy(text) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+function setupTabs() {
+  document.addEventListener("click", (e) => {
+    const distEl = e.target.closest(".dist.clickable");
+    if (distEl) {
+      showOrderMap(distEl.dataset.eid);
+      return;
+    }
+    const copyBtn = e.target.closest(".copy-btn");
+    if (copyBtn) {
+      const text = copyBtn.dataset.copy || "";
+      if (text) {
+        copyText(text).then(() => {
+          copyBtn.textContent = "✓";
+          setTimeout(() => { copyBtn.textContent = "⧉"; }, 1200);
+        });
+      }
+      return;
+    }
+    const row = e.target.closest(".item-row.clickable");
+    if (!row) return;
+    const list = row.nextElementSibling;
+    const toggle = row.querySelector(".opt-toggle");
+    if (list && list.classList.contains("opt-list")) {
+      list.hidden = !list.hidden;
+      if (toggle) toggle.classList.toggle("open", !list.hidden);
+    }
+  });
+  for (const pfx of Object.keys(PLATFORMS)) {
+    const tabs = $("tabs-" + pfx);
+    if (!tabs) continue;
+    if (pfx === "demaecan") {
+      // Demae-Can exposes no order status/completion, so it has a single
+      // (active) view and no tab bar.
+      tabs.style.display = "none";
+      activeTab[pfx] = "active";
+      applyTab(pfx);
+      continue;
+    }
+    tabs.querySelectorAll(".tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        activeTab[pfx] = btn.dataset.view;
+        localStorage.setItem("tab-" + pfx, activeTab[pfx]);
+        applyTab(pfx);
+      });
+    });
+    applyTab(pfx);
+  }
+}
+
+function renderState(data) {
+  setupStoreSelect(data);
+  for (const [pfx, info] of Object.entries(data.platforms)) {
+    const st = info.state.auth || "unknown";
+    const dot = $("authdot-" + pfx);
+    if (dot) {
+      const cls = "auth-dot " + st;
+      if (dot.className !== cls) dot.className = cls;
+      dot.title = st === "ok" ? "Connected" : st === "needed" ? "Re-login needed" : st;
+    }
+    $("reauth-" + pfx).style.display = st === "needed" ? "block" : "none";
+    const sel = selectedStore[pfx];
+    let sstats = info.stats;
+    if (sel && (info.stores || []).length) {
+      const found = info.stores.find(s => s.uuid === sel);
+      if (found) sstats = { orders: found.orders, revenue: found.revenue };
+    }
+    setText("count-" + pfx, sstats.orders ?? 0);
+    setText("revenue-" + pfx, money(sstats.revenue));
+    const activeEl = $("active-" + pfx);
+    if (activeEl) setText("active-" + pfx, filtered(ordersByPlatform[pfx], pfx).length);
+    updateTabCounts(pfx);
+  }
+  if (data.delivery_time) {
+    currentDtAccount = demaeStoreKey(data);
+    setText("dt-value", currentDtAccount ? (data.delivery_time[currentDtAccount].minutes ?? "–") : "–");
+    $("dt-value").parentElement.style.color = "";
+    // changing the delivery time only applies to one specific store — hide
+    // the controls when "All stores" is selected
+    const storeSelected = !!selectedStore.demaecan;
+    $("dt-set").style.display = storeSelected ? "" : "none";
+    $("dt-input").style.display = storeSelected ? "" : "none";
+  }
+}
+
+function setText(id, value) {
+  const el = $(id);
+  if (el && el.textContent !== String(value)) el.textContent = value;
+}
+
+function updateTabCounts(pfx) {
+  setText("tabcount-" + pfx + "-active", `(${filtered(ordersByPlatform[pfx], pfx).length})`);
+  setText("tabcount-" + pfx + "-completed", `(${filtered(historyByPlatform[pfx], pfx).length})`);
+}
+
+const TILE_SOURCES = [
+  { url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", att: "&copy; OpenStreetMap contributors" },
+  { url: "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", att: "&copy; OpenStreetMap &copy; CARTO" },
+  { url: "https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png", att: "&copy; OpenStreetMap &copy; CARTO" },
+];
+let tileSourceIdx = 0;
+
+function addTileLayer(map) {
+  if (tileSourceIdx >= TILE_SOURCES.length) return;
+  const src = TILE_SOURCES[tileSourceIdx];
+  let loadedAny = false;
+  const layer = L.tileLayer(src.url, { attribution: src.att, maxZoom: 19 });
+  layer.on("tileload", () => { loadedAny = true; });
+  layer.on("tileerror", () => {
+    if (!loadedAny) {
+      layer.remove();
+      tileSourceIdx++;
+      addTileLayer(map);
+    }
+  });
+  layer.addTo(map);
+  setTimeout(() => {
+    if (!loadedAny && layer._map) {
+      layer.remove();
+      tileSourceIdx++;
+      addTileLayer(map);
+    }
+  }, 7000);
+}
+
+function ensureLeaflet(cb) {
+  if (window.L) { cb(); return; }
+  if (!document.querySelector("#leaflet-css")) {
+    const link = document.createElement("link");
+    link.id = "leaflet-css";
+    link.rel = "stylesheet";
+    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(link);
+  }
+  const s = document.createElement("script");
+  s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  s.onload = cb;
+  document.head.appendChild(s);
+}
+
+function showOrderMap(eid) {
+  const m = cardMetas[eid];
+  if (!m || m.cust_lat == null || m.store_lat == null) return;
+  ensureLeaflet(() => {
+    const modal = $("map-modal");
+    modal.classList.add("show");
+    const mapEl = $("map-container");
+    mapEl.innerHTML = "";
+    const map = L.map(mapEl).setView([m.cust_lat, m.cust_lon], 14);
+    tileSourceIdx = 0;
+    addTileLayer(map);
+    L.marker([m.store_lat, m.store_lon]).addTo(map).bindPopup("<b>Store</b>");
+    L.marker([m.cust_lat, m.cust_lon]).addTo(map).bindPopup("<b>Customer</b>");
+    if (m.route && m.route.length > 1) {
+      L.polyline(m.route.map(c => [c[1], c[0]]), { color: "#4f8cff", weight: 4, opacity: 0.9 }).addTo(map);
+    }
+    map.fitBounds(L.latLngBounds([[m.store_lat, m.store_lon], [m.cust_lat, m.cust_lon]]), { padding: [40, 40] });
+    setTimeout(() => map.invalidateSize(), 60);
+  });
+}
+
+function setupMapModal() {
+  const modal = $("map-modal");
+  if (!modal) return;
+  $("map-close").addEventListener("click", () => modal.classList.remove("show"));
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.remove("show");
+  });
+}
+
+function setConn(ok, text) {
+  $("connDot").className = "dot " + (ok ? "ok" : "bad");
+  $("connText").textContent = text;
+}
+
+async function loadOrders() {
+  try {
+    const res = await fetch("/api/orders?limit=80");
+    const orders = await res.json();
+    ordersByPlatform = { ubereats: [], demaecan: [] };
+    historyByPlatform = { ubereats: [], demaecan: [] };
+    const seen = {};
+    for (const o of orders) {
+      const pfx = o.platform;
+      const key = pfx + ":" + o.external_id;
+      if (seen[key]) continue;
+      seen[key] = true;
+      if (o.status === "COMPLETED" || o.status === "DELIVERED" || o.status === "CANCELLED") {
+        if (historyByPlatform[pfx]) historyByPlatform[pfx].push(o);
+      } else {
+        if (ordersByPlatform[pfx]) ordersByPlatform[pfx].push(o);
+      }
+    }
+    for (const pfx of Object.keys(PLATFORMS)) {
+      renderAll(pfx);
+    }
+  } catch (e) { setConn(false, "api error"); }
+}
+
+function connectSSE() {
+  const es = new EventSource("/api/events");
+  es.onopen = () => setConn(true, "live");
+  es.onerror = () => setConn(false, "reconnecting…");
+  es.onmessage = async (ev) => {
+    let event;
+    try { event = JSON.parse(ev.data); } catch { return; }
+    if (event.type === "new_order") {
+      const pfx = event.platform;
+      const o = event.order;
+      const known = ordersByPlatform[pfx] || [];
+      if (!known.some(x => x.external_id === o.external_id)) {
+        o.first_seen_at = new Date().toISOString();
+        known.unshift(o);
+        ordersByPlatform[pfx] = known;
+        renderAll(pfx);
+        loadState();
+        beep();
+        toast(pfx, o);
+      }
+    }
+    if (event.type === "poll" || event.type === "auth" || event.type === "error") {
+      loadState();
+      loadOrders();
+    }
+    if (event.type === "delivery_time" && event.platform === "demaecan" && event.account === currentDtAccount) {
+      $("dt-value").textContent = event.value.minutes ?? "–";
+    }
+  };
+}
+
+async function loadState() {
+  try {
+    const res = await fetch("/api/state");
+    lastState = await res.json();
+    renderState(lastState);
+  } catch (e) {}
+}
+
+let lastState = null;
+
+$("dt-set").addEventListener("click", async () => {
+  const minutes = parseInt($("dt-input").value, 10);
+  if (!minutes || minutes < 5 || minutes > 240) { $("dt-status").textContent = "5–240 min"; return; }
+  const btn = $("dt-set");
+  btn.disabled = true;
+  $("dt-status").textContent = "saving…";
+  const store = currentDtAccount ? `?store=${encodeURIComponent(currentDtAccount)}` : "";
+  try {
+    const res = await fetch("/api/delivery-time" + store, {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({minutes})
+    });
+    const data = await res.json();
+    $("dt-status").textContent = data.ok ? "saved ✓" : "error: " + (data.error || "");
+    if (data.ok) { $("dt-value").textContent = minutes; $("dt-input").value = ""; }
+  } catch (e) { $("dt-status").textContent = "network error"; }
+  btn.disabled = false;
+});
+
+loadState();
+loadOrders();
+setupTabs();
+setupPlatformTabs();
+setupMapModal();
+connectSSE();
+setInterval(loadState, 15000);
+setInterval(loadOrders, 20000);
+</script>
+</body>
+</html>
