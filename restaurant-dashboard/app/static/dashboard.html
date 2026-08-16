@@ -524,7 +524,7 @@ function metaBlock(order) {
   const kv = [];
   if (m.delivery_time) kv.push(`<span class="delivery">Delivery ${fmtTime(m.delivery_time)}</span>`);
   if (m.wait_time != null) kv.push(`<span>Wait ${m.wait_time}min</span>`);
-  if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${escapeHtml(m.payment)}</span>`);
+  if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${m.payment_cash ? "💵 " : ""}${escapeHtml(m.payment)}</span>`);
   if (m.past_orders != null) kv.push(`<span>Orders: ${m.past_orders}</span>`);
   if (m.phone) kv.push(`<span>📞 ${escapeHtml(m.phone)} <button class="copy-btn" data-copy="${escapeHtml(m.phone)}" title="Copy">⧉</button></span>`);
   if (m.distance_km != null) {
