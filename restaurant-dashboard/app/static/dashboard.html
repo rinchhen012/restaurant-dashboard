@@ -297,7 +297,7 @@
     .search-modal-results { flex: 1; }
   }
   @media (max-width: 860px) {
-    .fab { right: 14px; bottom: 14px; }
+    .fab { position: fixed; right: 16px; bottom: 20px; z-index: 30; }
     .search-bar { padding: 8px 14px; }
     .search-results { padding: 0 14px 8px; }
   }
@@ -778,18 +778,13 @@ function findOrder(pfx, eid) {
 }
 
 function searchRowHTML(o, pfx) {
-  const code = o.order_code || o.external_id || "";
-  const store = (o.store_uuid && storeLookup[pfx] && storeLookup[pfx][o.store_uuid])
-    ? `<span class="search-row-store">${escapeHtml(storeLookup[pfx][o.store_uuid])}</span>` : "";
-  return `<div class="search-row" data-eid="${escapeHtml(o.external_id)}" data-pfx="${pfx}">
-    <div class="search-row-main">
-      <span class="time">${fmtTime(o.placed_at || o.first_seen_at)}</span>
-      <span class="oid">${escapeHtml(code)}</span>
-      ${customerName(o)}
-      ${store}
-      <span class="total">${money(o.total)}</span>
-    </div>
-  </div>`;
+  const wrap = document.createElement("div");
+  wrap.innerHTML = orderCard(o, pfx, false);
+  const node = wrap.firstElementChild;
+  node.dataset.eid = o.external_id;
+  node.dataset.pfx = pfx;
+  node.classList.add("search-row");
+  return node.outerHTML;
 }
 
 function renderSearchModal() {
@@ -868,11 +863,11 @@ function setupSearch() {
     }
   });
   modal.addEventListener("click", (e) => {
-    const main = e.target.closest(".search-row-main");
-    if (main) {
-      const row = main.closest(".search-row");
-      if (row) jumpToOrder(row.dataset.pfx, row.dataset.eid);
-    }
+    const card = e.target.closest(".search-row");
+    if (!card) return;
+    // ignore clicks on interactive elements inside the card
+    if (e.target.closest("button, .opt-toggle, .item-row.clickable, .copy-btn, .dist.clickable")) return;
+    jumpToOrder(card.dataset.pfx, card.dataset.eid);
   });
 }
 
