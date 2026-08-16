@@ -32,6 +32,7 @@
     cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
+  .cash-pill-amt { color: var(--demae); font-weight: 700; }
   .cash-row, .cash-total {
     display: flex; align-items: center; gap: 12px; padding: 9px 12px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
@@ -919,8 +920,8 @@ function cashData(scopeStore) {
 
 function updateCashPill() {
   const t = cashData(selectedStore.demaecan);
-  const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} ${money(v.total)}`);
-  $("cash-pill-body").textContent = parts.length ? `💵 ${parts.join(" · ")}` : "💵 ¥0";
+  const parts = Object.entries(t).map(([label, v]) => `${shortStore(label)} <span class="cash-pill-amt">${money(v.total)}</span>`);
+  $("cash-pill-body").innerHTML = parts.length ? `💵 ${parts.join(" · ")}` : "💵 <span class=\"cash-pill-amt\">¥0</span>";
 }
 
 function setupCashPill() {
