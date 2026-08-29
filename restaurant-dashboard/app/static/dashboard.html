@@ -172,6 +172,8 @@
   .copy-btn:hover { color: var(--text); border-color: var(--accent); }
   .order .cust { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .order .total { font-size: 18px; font-weight: 800; margin-top: 6px; text-align: right; color: #9ecbff; font-variant-numeric: tabular-nums; }
+  .order .total .pay-badge { font-size: 12px; font-weight: 600; color: var(--muted); margin-right: 6px; }
+  .order .total .pay-badge.cash { color: var(--danger); font-weight: 700; }
   .order .total.pay-cash-total { color: var(--danger); }
   .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 16px 0; }
   .loading {
@@ -609,7 +611,6 @@ function metaBlock(order) {
   }
   const kv = [];
   if (m.wait_time != null) kv.push(`<span>Wait ${m.wait_time}min</span>`);
-  if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${m.payment_cash ? "💵 " : ""}${escapeHtml(m.payment)}</span>`);
   if (m.past_orders != null) kv.push(`<span>Orders: ${m.past_orders}</span>`);
   if (m.phone) kv.push(`<span>📞 ${escapeHtml(m.phone)} <button class="copy-btn" data-copy="${escapeHtml(m.phone)}" title="Copy">⧉</button></span>`);
   if (m.distance_km != null) {
@@ -633,7 +634,12 @@ function orderCard(order, platform, isNew) {
   const delTime = (platform === "demaecan" && order.meta && order.meta.delivery_time)
     ? `<span class="time del ${order.meta.wait_time == null ? "reserved" : ""}">${fmtTime(order.meta.delivery_time)}</span>`
     : "";
-  return `<div class="order ${isNew ? "new" : ""}">
+  const cash = !!(order.meta && order.meta.payment_cash);
+    const payName = (order.meta && order.meta.payment) || "";
+    const payLabel = payName
+      ? `<span class="pay-badge${cash ? " cash" : ""}">${cash ? "💵 " : ""}${escapeHtml(payName)}</span>`
+      : "";
+    return `<div class="order ${isNew ? "new" : ""}">
     <div class="top">${platform === "demaecan" ? "" : badge(order)}
       <span class="oid" title="${escapeHtml(order.external_id || "")}">${escapeHtml(order.order_code || order.external_id || "")}</span>
       ${customerName(order)}
@@ -642,7 +648,7 @@ function orderCard(order, platform, isNew) {
     ${store}
     <div class="items">${items || `<span class="empty">(items unavailable)</span>`}</div>
     ${platform === "demaecan" ? metaBlock(order) : ""}
-    <div class="total${(order.meta && order.meta.payment_cash) ? " pay-cash-total" : ""}">${(order.meta && order.meta.payment_cash) ? "💵 " : ""}${money(order.total)}</div>
+    <div class="total${cash ? " pay-cash-total" : ""}">${payLabel}${money(order.total)}</div>
   </div>`;
 }
 
