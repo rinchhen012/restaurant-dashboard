@@ -951,11 +951,19 @@ function jumpToOrder(pfx, eid) {
   applyPlatformTabs();
   localStorage.setItem("mobile-platform", pfx);
   const order = findOrder(pfx, eid);
+  // switch the store filter to the order's store so it's always visible
+  if (order) {
+    const store = order.store_uuid || "";
+    selectedStore[pfx] = store;
+    const sel = $("store-" + pfx);
+    if (sel) sel.value = store;
+  }
   const done = !!order && ["COMPLETED", "DELIVERED", "CANCELLED"].includes(order.status);
   activeTab[pfx] = done ? "completed" : "active";
   localStorage.setItem("tab-" + pfx, activeTab[pfx]);
   applyTab(pfx);
   renderAll(pfx);
+  if (lastState) renderState(lastState);
   setTimeout(() => {
     const container = $((done ? "history-" : "orders-") + pfx);
     const card = container.querySelector(`.order[data-eid="${eid}"]`);
