@@ -1233,6 +1233,13 @@ function notifyMe(title, body) {
   } catch (e) {}
 }
 
+function notifyOrder(pfx, o) {
+  const store = (o.store_uuid && storeLookup[pfx] && storeLookup[pfx][o.store_uuid]) || o.store_name || "";
+  const items = (o.items || []).slice(0, 3).map(i => `${i.quantity || 1}× ${i.title}`).join(", ");
+  const body = [items, o.total != null ? money(o.total) : null].filter(Boolean).join(" · ");
+  notifyMe(`New ${PLATFORMS[pfx]} order${store ? " · " + store : ""}`, body || "New order");
+}
+
 let prevAuth = {};
 function checkAuthAlerts(data) {
   for (const [pfx, info] of Object.entries(data.platforms)) {
@@ -1461,6 +1468,7 @@ function connectSSE() {
         loadState();
         beep();
         toast(pfx, o);
+        notifyOrder(pfx, o);
       }
     }
     if (event.type === "poll" || event.type === "auth" || event.type === "error") {
