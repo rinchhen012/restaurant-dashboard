@@ -2,7 +2,15 @@
 # Start the restaurant order dashboard (on-demand).
 cd "$(dirname "$0")" || exit 1
 
-if curl -s -o /dev/null http://localhost:8787/api/state 2>/dev/null; then
+# Health check: only treat it as running if /api/state actually serves OUR app
+if curl -s -m 3 http://localhost:8787/api/state 2>/dev/null | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    sys.exit(0 if isinstance(d, dict) and 'platforms' in d else 1)
+except Exception:
+    sys.exit(1)
+"; then
   echo "Dashboard is already running at http://localhost:8787"
 else
   source .venv/bin/activate
