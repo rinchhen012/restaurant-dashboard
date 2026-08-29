@@ -128,3 +128,14 @@ def send_new_order_push(order: dict) -> None:
             asyncio.to_thread(_send_one, sub, payload)
         except Exception:
             pass
+
+
+def send_test() -> int:
+    """Send a test push to every registered device; returns how many were sent."""
+    subs = _subscriptions()
+    payload = {"title": "Dashboard test notification", "body": "✅ Your phone is connected. New orders will notify you here."}
+    sent = 0
+    for sub in subs:
+        if _send_one(sub, payload):
+            sent += 1
+    return sent

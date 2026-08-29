@@ -32,6 +32,8 @@
     cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
   .cash-pill:hover { border-color: var(--demae); color: #fff; }
+  .test-notif { margin-left: 6px; color: var(--accent); border-color: rgba(79, 140, 255, .4); flex: none; }
+  .test-notif:hover { border-color: var(--accent); color: #fff; }
   .date-pick {
     flex: none; background: var(--panel2); border: 1px solid var(--border); color: var(--text);
     border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
@@ -370,6 +372,7 @@
   <h1>Order Dashboard</h1>
   <span class="sub">Uber Eats · Demae-Can</span>
   <button class="cash-pill" id="cash-pill" title="Cash payments today (Demae-Can)"><span id="cash-pill-body">💵 –</span></button>
+  <button class="cash-pill test-notif" id="test-notif" title="Send a test push notification to your phone">🔔 Test</button>
 </header>
 
 <div class="warn-banner" id="session-warn" hidden></div>
@@ -1038,6 +1041,24 @@ function updateCashPill() {
   $("cash-pill").title = viewDate ? `Cash payments for ${fmtDateShort(viewDate)}` : "Cash payments today (Demae-Can)";
 }
 
+function setupTestNotif() {
+  document.getElementById("test-notif").addEventListener("click", async () => {
+    notifyMe("Dashboard test notification", "This is a test notification from your dashboard.");
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      const data = await res.json();
+      const msg = data.sent > 0
+        ? `Web Push sent to ${data.sent} device(s). Check your phone!`
+        : "No phone is subscribed yet. Tap anywhere once to allow notifications, then try again.";
+      const t = document.createElement("div");
+      t.className = "toast demaecan";
+      t.innerHTML = `<div class="t">Test notification</div><div class="d">${msg}</div>`;
+      $("toasts").appendChild(t);
+      setTimeout(() => t.remove(), 9000);
+    } catch (e) {}
+  });
+}
+
 function setupCashPill() {
   $("cash-pill").addEventListener("click", openCashModal);
   $("cash-modal-close").addEventListener("click", () => $("cash-modal").classList.remove("show"));
@@ -1550,6 +1571,7 @@ setupSearch();
 setupPlatformTabs();
 setupMapModal();
 setupCashPill();
+setupTestNotif();
 setupDateView();
 setupPush();
 connectSSE();

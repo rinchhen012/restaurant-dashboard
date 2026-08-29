@@ -125,6 +125,12 @@ async def api_push_unsubscribe(request: Request):
     return {"ok": True}
 
 
+@app.post("/api/push/test")
+async def api_push_test():
+    sent = await asyncio.to_thread(push.send_test)
+    return {"ok": True, "sent": sent}
+
+
 @app.get("/api/orders")
 async def api_orders(platform: str = None, limit: int = 500, today: bool = True):
     return db.list_orders(platform=platform, limit=limit, today_only=today)
