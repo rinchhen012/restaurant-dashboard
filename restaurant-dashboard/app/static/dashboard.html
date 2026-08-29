@@ -111,7 +111,11 @@
   .order .oid { font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
   .cust-top { font-size: 13px; font-weight: 600; }
   .cust-en { color: var(--muted); font-weight: 400; }
-  .order .time { font-size: 14px; font-weight: 700; color: var(--warn); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .order .time { font-size: 14px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
+  .top-times { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.15; }
+  .top-times .time { margin-left: 0; }
+  .top-times .time.del { font-size: 12px; color: var(--muted); }
+  .top-times .time.del.reserved { color: var(--accent); font-weight: 700; }
   .badge { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .4px; }
   .badge.NEW { background: #123a6b; color: #7ab7ff; }
   .badge.ACCEPTED { background: #0e3b26; color: #4ade80; }
@@ -141,10 +145,6 @@
     padding: 5px 8px; margin-bottom: 6px; font-weight: 600;
   }
   .meta-kv { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
-  .meta-times { display: flex; flex-direction: column; gap: 2px; }
-  .mt-label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-  .mt-line { font-size: 13px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
-  .mt-line.reserved { color: var(--accent); }
   .meta-receipt {
     background: #3d1316; color: #f87171; font-weight: 700; border-radius: 6px;
     padding: 5px 8px; margin-bottom: 6px;
@@ -597,15 +597,6 @@ function metaBlock(order) {
     rows.push(`<div class="meta-remark">Note: ${escapeHtml(m.remarks)}${en}</div>`);
   }
   const kv = [];
-  if (m.order_time || m.delivery_time) {
-    const lines = [];
-    if (m.order_time) lines.push(`<div class="mt-line">${fmtTime(m.order_time)}</div>`);
-    if (m.delivery_time) {
-      const cls = m.wait_time == null ? "mt-line reserved" : "mt-line";
-      lines.push(`<div class="${cls}">${fmtTime(m.delivery_time)}</div>`);
-    }
-    kv.push(`<span class="meta-times"><span class="mt-label">Time</span>${lines.join("")}</span>`);
-  }
   if (m.wait_time != null) kv.push(`<span>Wait ${m.wait_time}min</span>`);
   if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${m.payment_cash ? "💵 " : ""}${escapeHtml(m.payment)}</span>`);
   if (m.past_orders != null) kv.push(`<span>Orders: ${m.past_orders}</span>`);
@@ -628,11 +619,14 @@ function orderCard(order, platform, isNew) {
   if (order.meta) cardMetas[order.external_id] = order.meta;
   const store = (order.store_uuid && storeLookup[platform][order.store_uuid])
     ? `<div class="cust">Store: ${escapeHtml(storeLookup[platform][order.store_uuid])}</div>` : "";
+  const delTime = (platform === "demaecan" && order.meta && order.meta.delivery_time)
+    ? `<span class="time del ${order.meta.wait_time == null ? "reserved" : ""}">${fmtTime(order.meta.delivery_time)}</span>`
+    : "";
   return `<div class="order ${isNew ? "new" : ""}">
     <div class="top">${platform === "demaecan" ? "" : badge(order)}
       <span class="oid" title="${escapeHtml(order.external_id || "")}">${escapeHtml(order.order_code || order.external_id || "")}</span>
       ${customerName(order)}
-      <span class="time">${fmtTime(order.placed_at || order.first_seen_at)}</span>
+      <span class="top-times"><span class="time">${fmtTime(order.placed_at || order.first_seen_at)}</span>${delTime}</span>
     </div>
     ${store}
     <div class="items">${items || `<span class="empty">(items unavailable)</span>`}</div>
