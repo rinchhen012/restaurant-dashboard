@@ -55,6 +55,17 @@
   .cash-amt, .cash-total span:last-child { margin-left: auto; color: var(--demae); font-weight: 800; font-size: 15px; }
   .cash-total { border-color: var(--demae); background: #24141a; }
   .cash-total span:last-child { font-size: 18px; }
+  .cash-orders { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .cash-order {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 12.5px;
+  }
+  .cash-order:hover { border-color: var(--accent); }
+  .cash-order .time { color: var(--warn); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cash-order .store { color: var(--muted); }
+  .cash-order .cust { margin-left: auto; color: var(--text); }
+  .cash-order .cash-amt { font-size: 14px; }
   .grid {
     display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
     padding: 16px 24px 24px; max-width: 1600px; margin: 0 auto;
@@ -114,7 +125,7 @@
   .order .time { font-size: 14px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
   .top-times { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; line-height: 1.15; }
   .top-times .time { margin-left: 0; }
-  .top-times .time.del { font-size: 12px; color: var(--muted); }
+  .top-times .time.del { font-size: 12px; color: var(--warn); }
   .top-times .time.del.reserved { color: var(--accent); font-weight: 700; }
   .badge { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: .4px; }
   .badge.NEW { background: #123a6b; color: #7ab7ff; }
@@ -609,7 +620,7 @@ function metaBlock(order) {
   if (m.address) {
     const en = m.address_en ? `<div class="trans-en">${escapeHtml(m.address_en)}</div>` : "";
     const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(m.address);
-    rows.push(`<div class="meta-addr">📍 ${escapeHtml(m.address)} <button class="copy-btn" data-copy="${escapeHtml(m.address)}" title="Copy">⧉</button><a class="copy-btn maps-btn" href="${mapsUrl}" target="_blank" rel="noopener" title="Open in Google Maps">🗺</a>${en}</div>`);
+    rows.push(`<div class="meta-addr">📍 ${escapeHtml(m.address)} <button class="copy-btn" data-copy="${escapeHtml(m.address)}" title="Copy">⧉</button><a class="copy-btn maps-btn" href="${mapsUrl}" target="_blank" rel="noopener" title="Open in Google Maps">➤</a>${en}</div>`);
   }
   return `<div class="order-meta">${rows.join("")}</div>`;
 }
@@ -829,7 +840,7 @@ function searchFields(o) {
   const itemText = (o.items || []).flatMap(i => [i.title, ...(i.options || []).map(x => x.title)]).join(" ");
   return [
     o.order_code, o.external_id, o.status, o.customer, m.customer, m.customer_en,
-    m.address, m.address_en, m.phone, o.store_name, itemText,
+    m.address, m.address_en, m.phone, o.store_name, itemText, m.payment,
     o.total != null ? String(o.total) + " " + money(o.total) : ""
   ].filter(Boolean).join(" ").toLowerCase();
 }
@@ -1015,8 +1026,20 @@ function setupCashPill() {
   $("cash-modal-close").addEventListener("click", () => $("cash-modal").classList.remove("show"));
   $("cash-modal").addEventListener("click", (e) => {
     if (e.target === $("cash-modal")) $("cash-modal").classList.remove("show");
+    const row = e.target.closest(".cash-order");
+    if (row) {
+      $("cash-modal").classList.remove("show");
+      jumpToOrder("demaecan", row.dataset.eid);
+    }
   });
   updateCashPill();
+}
+
+function cashOrderList() {
+  const pool = viewDate
+    ? (dateOrders.demaecan || [])
+    : [...(ordersByPlatform.demaecan || []), ...(historyByPlatform.demaecan || [])];
+  return pool.filter(o => (o.meta || {}).payment_cash && o.total != null);
 }
 
 function openCashModal() {
@@ -1026,10 +1049,23 @@ function openCashModal() {
   const rows = Object.entries(t).map(([label, v]) =>
     `<div class="cash-row"><span>${escapeHtml(label)}</span><span>${v.count} order${v.count === 1 ? "" : "s"}</span><span class="cash-amt">${money(v.total)}</span></div>`
   ).join("");
+  const orders = cashOrderList()
+    .slice()
+    .sort((a, b) => String(b.placed_at || "").localeCompare(String(a.placed_at || "")));
+  const orderRows = orders.map(o => {
+    const store = (o.store_uuid && storeLookup.demaecan && storeLookup.demaecan[o.store_uuid]) || "";
+    const cust = (o.meta && o.meta.customer) || "";
+    return `<div class="cash-order" data-eid="${escapeHtml(o.external_id)}" title="Open order">
+      <span class="time">${fmtTime(o.placed_at || o.first_seen_at)}</span>
+      <span class="store">${escapeHtml(store)}</span>
+      <span class="cust">${escapeHtml(cust)}</span>
+      <span class="cash-amt">${money(o.total)}</span>
+    </div>`;
+  }).join("");
   $("cash-modal-title").textContent = viewDate ? `Cash payments for ${fmtDateShort(viewDate)}` : "Cash payments today";
   $("cash-modal-body").innerHTML = `
     <div class="cash-total"><span>Total</span><span>${count} orders</span><span>${money(total)}</span></div>
-    ${rows}`;
+    ${rows}${orderRows ? `<div class="cash-orders">${orderRows}</div>` : ""}`;
   $("cash-modal").classList.add("show");
 }
 
