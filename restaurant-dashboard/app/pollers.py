@@ -8,6 +8,7 @@ from app import db
 from app.adapters.base import Adapter, NeedsReauth
 from app.adapters.demaecan import DemaeCanAdapter, account_configs, account_session_key, translate_ja_en
 from app.adapters.ubereats import UberEatsAdapter
+from app import push
 
 logger = logging.getLogger("pollers")
 
@@ -136,6 +137,10 @@ async def poll_once(platform: str, key: str, adapter: Adapter):
             await broadcast(
                 {"type": "new_order", "platform": platform, "account": key, "order": o, "orders": orders}
             )
+            try:
+                push.send_new_order_push(o)
+            except Exception as e:
+                logger.warning("push failed: %s", e)
     _state[key] = {
         "auth": "ok",
         "orders_active": len(orders),

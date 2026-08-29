@@ -1282,10 +1282,43 @@ function renderSessionWarn(data) {
   }
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function setupPush() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js");
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub && Notification.permission === "granted") {
+      const res = await fetch("/api/push/vapid-public-key");
+      const keyData = await res.json();
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
+      });
+    }
+    if (sub) {
+      await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub.toJSON())
+      });
+    }
+  } catch (e) {}
+}
+
 document.addEventListener("click", function requestNotifPerm() {
   if ("Notification" in window && Notification.permission === "default") {
     Notification.requestPermission().catch(() => {});
   }
+  setTimeout(setupPush, 400);
   document.removeEventListener("click", requestNotifPerm);
 }, { once: true });
 
@@ -1518,6 +1551,7 @@ setupPlatformTabs();
 setupMapModal();
 setupCashPill();
 setupDateView();
+setupPush();
 connectSSE();
 setInterval(loadState, 15000);
 setInterval(loadOrders, 20000);

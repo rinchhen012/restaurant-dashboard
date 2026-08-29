@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from app import config
 from app import db
 from app import pollers
+from app import push
 from app.adapters.demaecan import DemaeCanAdapter, account_configs, account_session_key
 from app.adapters.ubereats import UberEatsAdapter
 
@@ -60,6 +61,11 @@ async def dashboard():
     return FileResponse(STATIC_DIR / "dashboard.html")
 
 
+@app.get("/sw.js")
+async def service_worker():
+    return FileResponse(STATIC_DIR / "sw.js", media_type="application/javascript")
+
+
 @app.get("/api/state")
 async def api_state():
     stats = db.today_stats()
@@ -95,6 +101,28 @@ async def api_state():
         "sessions": sessions,
         "uber_first_date": db.min_order_date("ubereats"),
     }
+
+
+@app.get("/api/push/vapid-public-key")
+async def api_push_vapid_key():
+    return {"publicKey": push.public_key()}
+
+
+@app.post("/api/push/subscribe")
+async def api_push_subscribe(request: Request):
+    body = await request.json()
+    if body.get("endpoint") and body.get("keys", {}).get("p256dh") and body.get("keys", {}).get("auth"):
+        push.save_subscription(body)
+        return {"ok": True}
+    return JSONResponse({"ok": False, "error": "invalid subscription"}, status_code=400)
+
+
+@app.post("/api/push/unsubscribe")
+async def api_push_unsubscribe(request: Request):
+    body = await request.json()
+    if body.get("endpoint"):
+        push.remove_subscription(body["endpoint"])
+    return {"ok": True}
 
 
 @app.get("/api/orders")

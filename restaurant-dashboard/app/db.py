@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS order_details_cache (
     updated_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (platform, external_id)
 );
+
+CREATE TABLE IF NOT EXISTS push_subs (
+    endpoint TEXT PRIMARY KEY,
+    keys_json TEXT,
+    updated_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 
