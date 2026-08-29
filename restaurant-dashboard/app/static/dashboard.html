@@ -460,6 +460,7 @@
 
 <script>
 const PLATFORMS = { ubereats: "Uber Eats", demaecan: "Demae-Can" };
+const UBER_DISABLED = true;
 let audioCtx = null;
 let lastOrderIds = new Set();
 let ordersByPlatform = { ubereats: [], demaecan: [] };
@@ -475,7 +476,7 @@ let activeTab = {
   demaecan: localStorage.getItem("tab-demaecan") || "active"
 };
 let cardMetas = {};
-let mobilePlatform = localStorage.getItem("mobile-platform") || "ubereats";
+let mobilePlatform = (UBER_DISABLED ? "demaecan" : localStorage.getItem("mobile-platform")) || "demaecan";
 let currentDtAccount = "";
 
 function setupPlatformTabs() {
@@ -492,6 +493,14 @@ function setupPlatformTabs() {
 }
 
 function applyPlatformTabs() {
+  if (UBER_DISABLED) {
+    const up = $("panel-ubereats");
+    if (up) up.style.display = "none";
+    const ub = document.querySelector('.ptab[data-platform="ubereats"]');
+    if (ub) ub.style.display = "none";
+    const grid = document.querySelector(".grid");
+    if (grid) { grid.style.gridTemplateColumns = "1fr"; grid.style.maxWidth = "980px"; }
+  }
   document.querySelectorAll(".ptab").forEach(b => b.classList.toggle("active", b.dataset.platform === mobilePlatform));
   for (const pfx of Object.keys(PLATFORMS)) {
     const panel = $("panel-" + pfx);

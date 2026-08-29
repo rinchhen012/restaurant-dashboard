@@ -133,7 +133,7 @@ Then: `launchctl load ~/Library/LaunchAgents/com.restaurant.dashboard.plist`
 
 ## How it works (real endpoints)
 
-- **Uber Eats** (`merchants.ubereats.com/manager/api`): `getActiveOrders` (live) +
+- **Uber Eats**: polling is **disabled by default** (see Notes). When enabled: `getActiveOrders` (live) +
   `getHistoricOrders` (today + past dates — past dates require both `pagingInfo` and
   `pagination` keys, with cursor pagination) + `getTodaySalesMetrics`; GraphQL
   `LiveOrderDetails` for item details + real statuses of active orders; requires header
@@ -164,6 +164,10 @@ Store IDs, location UUIDs, shop addresses and labels are in `data/endpoints.json
 
 - Unofficial integration (portal automation). Can break if either platform changes its site;
   recovery is re-capture + endpoint check.
+- **Uber Eats polling is disabled by default** (`ENABLE_UBER_POLLING = False` in
+  `app/config.py`) to avoid any risk of account flagging — the dashboard runs Demae-Can only.
+  To re-enable: set the flag to `True`, re-capture the Uber session
+  (`python -m app.capture ubereats --auto`), and restart.
 - Credentials/cookies are stored encrypted (key in `data/secret.key`, chmod 600, local only).
 - Poll interval: `POLL_INTERVAL_SECONDS` in `app/config.py`.
 - Cash totals cover Demae only — Uber's portal API exposes no payment method.

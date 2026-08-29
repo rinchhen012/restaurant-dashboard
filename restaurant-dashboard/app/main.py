@@ -50,6 +50,8 @@ def platform_state(platform: str) -> dict:
         active = sum(p.get("orders_active", 0) for p in parts if p.get("auth") == "ok")
         last_poll = max((p.get("last_poll", "") for p in parts), default="")
         return {"auth": auth, "orders_active": active, "last_poll": last_poll, "error": error}
+    if platform == "ubereats" and not config.ENABLE_UBER_POLLING:
+        return {"auth": "paused", "orders_active": 0, "last_poll": "", "error": None}
     return state.get(platform, {"auth": "unknown", "error": None})
 
 

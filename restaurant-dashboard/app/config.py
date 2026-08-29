@@ -29,6 +29,10 @@ PLATFORMS = {
 
 POLL_INTERVAL_SECONDS = 12
 
+# Uber Eats automation is disabled for now (risk of account flagging).
+# Re-enable with: set to True, re-capture the session, restart.
+ENABLE_UBER_POLLING = False
+
 
 def _load_or_create_key() -> bytes:
     if KEY_FILE.exists():

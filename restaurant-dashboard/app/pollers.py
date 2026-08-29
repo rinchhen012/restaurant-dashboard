@@ -11,7 +11,9 @@ from app.adapters.ubereats import UberEatsAdapter
 
 logger = logging.getLogger("pollers")
 
-POLL_JOBS = [("ubereats", UberEatsAdapter, {})]
+POLL_JOBS = []
+if config.ENABLE_UBER_POLLING:
+    POLL_JOBS.append(("ubereats", UberEatsAdapter, {}))
 for acct in account_configs():
     POLL_JOBS.append(("demaecan", DemaeCanAdapter, {"account": acct}))
 
