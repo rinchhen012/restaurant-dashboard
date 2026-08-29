@@ -141,9 +141,17 @@
     padding: 5px 8px; margin-bottom: 6px; font-weight: 600;
   }
   .meta-kv { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); }
+  .meta-times { display: flex; flex-direction: column; gap: 2px; }
+  .mt-label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .mt-line { font-size: 13px; font-weight: 700; color: var(--warn); font-variant-numeric: tabular-nums; }
+  .mt-line.reserved { color: var(--accent); }
+  .meta-receipt {
+    background: #3d1316; color: #f87171; font-weight: 700; border-radius: 6px;
+    padding: 5px 8px; margin-bottom: 6px;
+  }
+  .maps-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
   .meta-kv .pay-cash { color: var(--danger); font-weight: 800; }
   .meta-kv .dist { color: var(--uber); font-weight: 700; }
-  .meta-kv .delivery { color: var(--warn); font-weight: 700; }
   .meta-addr { color: var(--accent); font-weight: 600; margin-top: 4px; }
   .trans-en { color: var(--muted); margin: 2px 0 0 18px; font-style: italic; }
   .copy-btn {
@@ -539,7 +547,7 @@ function fmtTime(ts) {
   if (!ts) return "";
   const d = new Date(ts.replace(" ", "T"));
   if (isNaN(d)) return ts;
-  return d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  return d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false});
 }
 
 function badge(order) {
@@ -574,12 +582,21 @@ function metaBlock(order) {
   const m = order.meta;
   if (!m || !Object.keys(m).length) return "";
   const rows = [];
+  if (m.receipt) rows.push(`<div class="meta-receipt">🧾 領収書: ${escapeHtml(m.receipt)}</div>`);
   if (m.remarks) {
     const en = m.remarks_en ? `<div class="trans-en">${escapeHtml(m.remarks_en)}</div>` : "";
     rows.push(`<div class="meta-remark">Note: ${escapeHtml(m.remarks)}${en}</div>`);
   }
   const kv = [];
-  if (m.delivery_time) kv.push(`<span class="delivery">Delivery ${fmtTime(m.delivery_time)}</span>`);
+  if (m.order_time || m.delivery_time) {
+    const lines = [];
+    if (m.order_time) lines.push(`<div class="mt-line">${fmtTime(m.order_time)}</div>`);
+    if (m.delivery_time) {
+      const cls = m.wait_time == null ? "mt-line reserved" : "mt-line";
+      lines.push(`<div class="${cls}">${fmtTime(m.delivery_time)}</div>`);
+    }
+    kv.push(`<span class="meta-times"><span class="mt-label">Time</span>${lines.join("")}</span>`);
+  }
   if (m.wait_time != null) kv.push(`<span>Wait ${m.wait_time}min</span>`);
   if (m.payment) kv.push(`<span class="${m.payment_cash ? "pay-cash" : ""}">${m.payment_cash ? "💵 " : ""}${escapeHtml(m.payment)}</span>`);
   if (m.past_orders != null) kv.push(`<span>Orders: ${m.past_orders}</span>`);
@@ -591,7 +608,8 @@ function metaBlock(order) {
   if (kv.length) rows.push(`<div class="meta-kv">${kv.join("")}</div>`);
   if (m.address) {
     const en = m.address_en ? `<div class="trans-en">${escapeHtml(m.address_en)}</div>` : "";
-    rows.push(`<div class="meta-addr">📍 ${escapeHtml(m.address)} <button class="copy-btn" data-copy="${escapeHtml(m.address)}" title="Copy">⧉</button>${en}</div>`);
+    const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(m.address);
+    rows.push(`<div class="meta-addr">📍 ${escapeHtml(m.address)} <button class="copy-btn" data-copy="${escapeHtml(m.address)}" title="Copy">⧉</button><a class="copy-btn maps-btn" href="${mapsUrl}" target="_blank" rel="noopener" title="Open in Google Maps">🗺</a>${en}</div>`);
   }
   return `<div class="order-meta">${rows.join("")}</div>`;
 }
@@ -610,7 +628,7 @@ function orderCard(order, platform, isNew) {
     ${store}
     <div class="items">${items || `<span class="empty">(items unavailable)</span>`}</div>
     ${platform === "demaecan" ? metaBlock(order) : ""}
-    <div class="total${(order.meta && order.meta.payment_cash) ? " pay-cash-total" : ""}">${money(order.total)}</div>
+    <div class="total${(order.meta && order.meta.payment_cash) ? " pay-cash-total" : ""}">${(order.meta && order.meta.payment_cash) ? "💵 " : ""}${money(order.total)}</div>
   </div>`;
 }
 

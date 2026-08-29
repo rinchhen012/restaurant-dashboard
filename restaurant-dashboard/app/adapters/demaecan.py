@@ -344,6 +344,8 @@ class DemaeCanAdapter(Adapter):
         address_en = await translate_address_ordered(address) if address else None
         remarks_en = await translate_ja_en(remarks) if isinstance(remarks, str) and remarks else None
         payment_short, payment_cash = map_payment(order_info.get("paymentName") or "")
+        receipt = order_info.get("receiptAddress")
+        receipt = receipt.strip() if isinstance(receipt, str) and receipt.strip() else ""
         distance_km = None
         route = None
         store_lat = store_lon = cust_lat = cust_lon = None
@@ -379,6 +381,7 @@ class DemaeCanAdapter(Adapter):
             "cust_lat": cust_lat,
             "cust_lon": cust_lon,
             "phone": orderer.get("phoneNo") or "",
+            "receipt": receipt,
             "remarks": remarks if isinstance(remarks, str) and remarks else "",
             "remarks_en": remarks_en,
         }

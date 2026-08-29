@@ -51,10 +51,12 @@ async def broadcast(event: dict):
 
 async def poll_platform(platform: str, adapter: Adapter):
     key = get_state_key(platform, adapter)
+    backoff = 0
     while True:
         started = asyncio.get_event_loop().time()
         try:
             await poll_once(platform, key, adapter)
+            backoff = 0
         except NeedsReauth as e:
             logger.warning("Reauth needed: %s", e)
             _state[key] = {**_state.get(key, {}), "auth": "needed", "error": str(e)}
@@ -63,8 +65,11 @@ async def poll_platform(platform: str, adapter: Adapter):
             logger.exception("Poll failed for %s", key)
             _state[key] = {**_state.get(key, {}), "auth": "error", "error": str(e)}
             await broadcast({"type": "error", "platform": platform, "account": key, "error": str(e)})
+            # exponential backoff on failure (e.g. rate limiting) so we don't
+            # hammer the platform and can auto-recover once the limit resets
+            backoff = min((backoff or 20) * 2, 300)
         elapsed = asyncio.get_event_loop().time() - started
-        await asyncio.sleep(max(5, config.POLL_INTERVAL_SECONDS - elapsed))
+        await asyncio.sleep(max(5, config.POLL_INTERVAL_SECONDS - elapsed + backoff))
 
 
 _attempted_items: set[tuple[str, str]] = set()
