@@ -59,6 +59,7 @@ def save_subscription(subscription: dict):
             """,
             (subscription["endpoint"], json.dumps(subscription.get("keys") or {}, ensure_ascii=False)),
         )
+    logger.info("push subscription saved: %s", subscription.get("endpoint", "")[:60])
 
 
 def remove_subscription(endpoint: str):
