@@ -185,22 +185,38 @@ async def translate_ja_en(text: str) -> str | None:
 
 
 async def translate_address_ordered(address: str) -> str | None:
-    """Translate an address component-by-component so the English keeps the
-    same reading order as the Japanese (Google translates whole addresses
-    into the reverse order)."""
+    """Translate a full Japanese address to English.
+
+    Uses Google's whole-address translation, which reads place names
+    correctly (春日町 -> Kasugacho, not "Kasuga Town"; 豊玉中 -> Toyamaka,
+    not "Junior High School"). The output uses standard English address
+    order. Falls back to segment-ordered translation if the whole-address
+    call fails.
+    """
     if not address or not JA_RE.search(address):
         return None
     if address in _translation_cache:
         return _translation_cache[address] or None
+    result = await _google_translate(address)
+    if not result:
+        result = await _translate_segments(address)
+    _translation_cache[address] = result or ""
+    return result
+
+
+async def _translate_segments(address: str) -> str | None:
+    """Segment-ordered translation (kept as a fallback)."""
+    if not address or not JA_RE.search(address):
+        return None
     out = []
     for seg in _address_segments(address):
         if seg.startswith("〒") or (seg and seg[0].isdigit()):
             out.append(seg)
         else:
             out.append((await translate_ja_en(seg)) or seg)
-    result = " ".join(out).strip() or None
-    _translation_cache[address] = result or ""
-    return result
+    result = " ".join(out).strip()
+    _translation_cache[address] = result
+    return result or None
 
 
 def account_configs() -> dict[str, dict]:
